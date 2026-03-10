@@ -1,0 +1,30 @@
+default_profile: openrouter_gemini_flash_lite
+profiles:
+  openrouter_gemini_flash_lite:
+    provider: openrouter
+    label: OpenRouter Gemini 2.5 Flash Lite
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: LLM_API_KEY
+    model: google/gemini-2.5-flash-lite-preview-09-2025
+    mode: native
+  openrouter_gemini_flash:
+    provider: openrouter
+    label: OpenRouter Gemini 2.5 Flash
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: LLM_API_KEY
+    model: google/gemini-2.5-flash
+    mode: native
+  thales_mistral_small:
+    provider: thales
+    label: Thales Mistral Small
+    base_url: https://api.corp.thales/corp/genai-llm-small/v1
+    api_key_env: THALES_API_KEY
+    model: mistral
+    mode: textual_replay
+  thales_mistral_large:
+    provider: thales
+    label: Thales Mistral Large
+    base_url: https://api.corp.thales/corp/genai-llm-large/v1
+    api_key_env: THALES_API_KEY
+    model: mistral
+    mode: textual_replay

@@ -20,20 +20,26 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
 ## Immediate Next Steps
 
 1. Add root project files:
-   - `pyproject.toml`
-   - `.env.example`
-   - `docker-compose.yml`
-   - `config/providers.example.yaml`
-2. Scaffold shared package and settings
-3. Implement sidecar provider adapters and LangGraph entrypoint
-4. Add backend proxy and minimal Mongo persistence
-5. Add Streamlit shell wired to backend
+   - wire real approval and clarification flows into the graph/runtime
+   - extend tool registry beyond file tools
+2. Add backend run/session coverage:
+   - better run metadata
+   - graceful degraded mode when Mongo is unavailable
+3. Add Streamlit feature panels:
+   - sessions
+   - files
+   - RAG
+   - approvals
+   - Matrix
+4. Add real OpenRouter smoke once an API key is present in the new subtree `.env`
+5. Port Matrix runner and dashboard
 
 ## Practical Constraints
 
 - No Git remote is configured right now
 - Local commits can be made
 - `git push` is blocked until a remote is added
+- Docker is not installed on this machine right now, so the local Mongo bootstrap must not assume Docker
 
 ## Legacy Reference Areas
 
@@ -51,3 +57,12 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
 ## Provider-Specific Reminder
 
 The Windows Thales variant confirmed that standard OpenAI replay with `assistant.tool_calls` and `role=tool` is not reliable for Thales on follow-up turns. Preserve a dedicated textual replay path in the Python sidecar.
+
+## Verified So Far
+
+- sidecar starts locally
+- backend starts locally
+- `/health` works on both services
+- `/v1/models` returns a live OpenRouter catalog
+- provider unit tests pass
+- first real chat attempt reached the model call boundary and failed only because the new subtree has no OpenRouter key configured yet
