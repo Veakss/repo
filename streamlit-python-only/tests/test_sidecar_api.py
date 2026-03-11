@@ -44,11 +44,12 @@ def build_test_client(tmp_path: Path, responses: list[AIMessage], provider_mode:
         RuntimeDependencies(
             model_factory=lambda _profile, _model: model,
             provider_resolver=lambda _profile, _model: FakeProvider(provider_mode),
-            tool_registry_factory=lambda workspace_root, session_id, run_id: create_default_tool_registry(
+            tool_registry_factory=lambda workspace_root, session_id, run_id, tool_toggles=None: create_default_tool_registry(
                 workspace_root,
                 session_id=session_id,
                 run_id=run_id,
                 terminal_manager=terminals,
+                tool_toggles=tool_toggles,
             ),
             state_store=store,
             terminal_manager=terminals,

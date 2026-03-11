@@ -71,6 +71,11 @@
   - `terminal_single_shot`: pass
   - `approval_write_file`: pass
   - `interactive_terminal`: timeout with the real model
+- JS-style orchestration controls now applied in Python:
+  - policy profile
+  - tool toggles
+  - forced modes via `/rag`, `/web`, `/apps`, `/clarify`
+  - timeline filtering in the UI
 
 ## In Progress
 
@@ -81,6 +86,7 @@
 - optional future enhancements stay regression-free
 - Thales-specific live validation can be rerun when credentials are available on this machine
 - interactive terminal live prompting should be improved until `scripts/evaluate_capabilities.py` is fully green
+- remaining JS parity gaps are now concentrated in richer UI polish and advanced run-control behaviors, not the basic runtime contract
 
 ## Update Log
 
@@ -152,3 +158,10 @@
   - pass: single-shot terminal inspection
   - pass: approval-gated file creation
   - fail: interactive terminal scenario timed out under the real model
+- applied tool toggles and forced tool-use directives end-to-end in the Python runtime and Streamlit shell
+- added tests for forced RAG instruction injection and module-level tool disabling
+- verified `pytest -q` again after the orchestration parity pass: `33 passed`
+- reran `python scripts/evaluate_capabilities.py` live after fixing the sidecar runtime wiring:
+  - pass: `terminal_single_shot`
+  - pass: `approval_write_file`
+  - fail: `interactive_terminal` still times out under the real model

@@ -41,6 +41,8 @@ class AgentState(TypedDict):
     model: str | None
     provider_mode: str
     policy_profile: str
+    tool_toggles: dict[str, bool] | None
+    force_tool_use: str | None
     final_text: str
     pending_approval: dict[str, Any] | None
     pending_clarification: dict[str, Any] | None
@@ -51,7 +53,7 @@ class AgentState(TypedDict):
 class RuntimeDependencies:
     model_factory: Callable[[str | None, str | None], Any]
     provider_resolver: Callable[[str | None, str | None], ResolvedProvider]
-    tool_registry_factory: Callable[[str, str | None, str | None], ToolRegistry]
+    tool_registry_factory: Callable[[str, str | None, str | None, dict[str, bool] | None], ToolRegistry]
     state_store: RunStateStore
     terminal_manager: TerminalManager = field(default_factory=TerminalManager)
 
@@ -93,6 +95,18 @@ def build_tool_replay_message(name: str, args: dict[str, Any], result: str, stat
     )
 
 
+def forced_tool_instruction(mode: str | None) -> str | None:
+    if mode == "rag":
+        return "The user explicitly requested RAG mode for this run. You must use rag_lookup before answering. If RAG is unavailable or returns no useful result, explain that clearly."
+    if mode == "web":
+        return "The user explicitly requested Web mode for this run. You must use web_search before answering. If web access is unavailable or yields no useful result, explain that clearly."
+    if mode == "apps":
+        return "The user explicitly requested Apps mode for this run. Prefer open_file, open_url, or open_resource when relevant."
+    if mode == "clarification":
+        return "The user explicitly requested clarification mode for this run. Use request_clarification before proceeding unless the request is already fully specified."
+    return None
+
+
 def decode_terminal_payload(raw: str) -> dict[str, Any] | None:
     try:
         payload = json.loads(str(raw or ""))
@@ -120,11 +134,12 @@ class RuntimeEngine:
             dependencies = RuntimeDependencies(
                 model_factory=build_chat_model,
                 provider_resolver=resolve_provider,
-                tool_registry_factory=lambda workspace_root, session_id, run_id: create_default_tool_registry(
+                tool_registry_factory=lambda workspace_root, session_id, run_id, tool_toggles=None: create_default_tool_registry(
                     workspace_root,
                     session_id=session_id,
                     run_id=run_id,
                     terminal_manager=terminal_manager,
+                    tool_toggles=tool_toggles,
                 ),
                 state_store=RunStateStore(),
                 terminal_manager=terminal_manager,
@@ -133,7 +148,7 @@ class RuntimeEngine:
         self.graph = self._create_graph()
 
     def capabilities_payload(self, workspace_root: str, session_id: str | None = None) -> list[dict]:
-        return self.deps.tool_registry_factory(workspace_root, session_id, None).module_payloads()
+        return self.deps.tool_registry_factory(workspace_root, session_id, None, None).module_payloads()
 
     def _materialize_tool_result(
         self,
@@ -281,7 +296,7 @@ class RuntimeEngine:
 
     def _create_graph(self):
         def agent(state: AgentState) -> AgentState:
-            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"])
+            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"], state.get("tool_toggles"))
             model = self.deps.model_factory(state.get("profile"), state.get("model"))
             provider = self.deps.provider_resolver(state.get("profile"), state.get("model"))
             response = model.bind_tools(registry.enabled_tools()).invoke(state["messages"])
@@ -293,7 +308,7 @@ class RuntimeEngine:
             }
 
         def tools(state: AgentState) -> AgentState:
-            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"])
+            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"], state.get("tool_toggles"))
             last_message = state["messages"][-1]
             emitted_messages: list[BaseMessage] = []
             tool_events: list[dict[str, Any]] = []
@@ -393,6 +408,8 @@ class RuntimeEngine:
             "model": request.model,
             "provider_mode": provider.mode,
             "policy_profile": request.policyProfile,
+            "tool_toggles": request.toolToggles,
+            "force_tool_use": request.forceToolUse,
             "final_text": "",
             "pending_approval": None,
             "pending_clarification": None,
@@ -407,6 +424,8 @@ class RuntimeEngine:
             "model": state.get("model"),
             "provider_mode": state["provider_mode"],
             "policy_profile": state["policy_profile"],
+            "tool_toggles": state.get("tool_toggles"),
+            "force_tool_use": state.get("force_tool_use"),
             "messages": serialize_messages(state["messages"]),
             "session_id": state["session_id"],
             "final_text": state.get("final_text", ""),
@@ -424,6 +443,8 @@ class RuntimeEngine:
             "model": payload.get("model"),
             "provider_mode": payload["provider_mode"],
             "policy_profile": payload["policy_profile"],
+            "tool_toggles": payload.get("tool_toggles"),
+            "force_tool_use": payload.get("force_tool_use"),
             "final_text": payload.get("final_text", ""),
             "pending_approval": payload.get("pending_approval"),
             "pending_clarification": payload.get("pending_clarification"),
@@ -433,6 +454,9 @@ class RuntimeEngine:
     async def stream_chat(self, request: SidecarChatRequest, messages: list[BaseMessage]):
         run_id = request.runId or str(uuid.uuid4())
         state = self._initial_state(request, run_id, messages)
+        force_instruction = forced_tool_instruction(request.forceToolUse)
+        if force_instruction:
+            state["messages"] = [SystemMessage(content=force_instruction)] + list(state["messages"])
         yield run_state(run_id, "running")
         yield run_phase(run_id, "planning")
         yield run_phase(run_id, "execute")
@@ -457,7 +481,7 @@ class RuntimeEngine:
         run_id = state["run_id"]
         yield approval_decision(run_id, request.approval_id, request.decision)
         if request.decision == "approved":
-            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"])
+            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"], state.get("tool_toggles"))
             registered = registry.get(pending["name"])
             if not registered:
                 yield error_event("Approved tool is no longer available")

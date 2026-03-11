@@ -64,11 +64,12 @@ def create_sidecar_app(
         RuntimeDependencies(
             model_factory=build_chat_model,
             provider_resolver=resolve_provider,
-            tool_registry_factory=lambda workspace_root, session_id, run_id: create_default_tool_registry(
+            tool_registry_factory=lambda workspace_root, session_id, run_id, tool_toggles=None: create_default_tool_registry(
                 workspace_root,
                 session_id=session_id,
                 run_id=run_id,
                 terminal_manager=terminal_manager,
+                tool_toggles=tool_toggles,
             ),
             state_store=RunStateStore(),
             terminal_manager=terminal_manager,

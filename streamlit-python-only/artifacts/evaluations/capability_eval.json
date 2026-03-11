@@ -5,7 +5,7 @@
   "results": [
     {
       "id": "terminal_single_shot",
-      "session_id": "77f19906-2365-47b6-a004-7d3a2513e6de",
+      "session_id": "47f227b3-febc-4dbb-aef2-e0cbeca82be1",
       "model": "google/gemini-2.5-flash-lite-preview-09-2025",
       "workspace_root": "/Users/victor/Documents/continue-better",
       "passed": true,
@@ -33,7 +33,7 @@
     },
     {
       "id": "approval_write_file",
-      "session_id": "a44411cd-0df1-4970-a4aa-9bc8dcdc5773",
+      "session_id": "98e1edc7-e36f-4d3c-8333-926b6f5ea286",
       "model": "google/gemini-2.5-flash-lite-preview-09-2025",
       "workspace_root": "/Users/victor/Documents/continue-better",
       "passed": true,

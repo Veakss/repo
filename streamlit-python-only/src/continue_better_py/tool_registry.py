@@ -82,6 +82,7 @@ def create_default_tool_registry(
     session_id: str | None = None,
     run_id: str | None = None,
     terminal_manager: TerminalManager | None = None,
+    tool_toggles: dict[str, bool] | None = None,
 ) -> ToolRegistry:
     settings = get_settings()
     definitions = build_tool_definitions(
@@ -90,6 +91,14 @@ def create_default_tool_registry(
         run_id=run_id,
         terminal_manager=terminal_manager,
     )
+    toggles = tool_toggles or {}
+    toggle_overrides = {
+        "app_actions": toggles.get("appActions"),
+        "web": toggles.get("webSearch"),
+        "rag": toggles.get("rag"),
+        "memory": toggles.get("rag"),
+        "clarification": toggles.get("clarification"),
+    }
     module_flags = {
         "files": settings.enable_file_tools,
         "clarification": settings.enable_tool_clarification,
@@ -99,6 +108,9 @@ def create_default_tool_registry(
         "app_actions": settings.enable_app_actions,
         "web": settings.enable_web_search,
     }
+    for module_id, value in toggle_overrides.items():
+        if isinstance(value, bool):
+            module_flags[module_id] = module_flags.get(module_id, True) and value
     tools = [
         RegisteredTool(definition=definition, enabled=module_flags.get(definition.module_id, True))
         for definition in definitions

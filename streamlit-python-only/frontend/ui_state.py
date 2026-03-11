@@ -85,9 +85,24 @@ def format_event_label(event: dict[str, Any]) -> str:
     return event_type.replace("_", " ").title()
 
 
-def build_timeline_html(timeline: list[dict[str, Any]]) -> str:
+def build_timeline_html(timeline: list[dict[str, Any]], filter_name: str = "all") -> str:
+    if filter_name == "errors":
+        selected = [event for event in timeline if event.get("type") in {"error", "terminal_error"} or (event.get("type") == "run_diagnostic" and event.get("level") in {"warn", "error"})]
+    elif filter_name == "approvals":
+        selected = [event for event in timeline if event.get("type") in {"approval_required", "approval_decision"}]
+    elif filter_name == "terminal":
+        selected = [event for event in timeline if str(event.get("type", "")).startswith("terminal_")]
+    elif filter_name == "files":
+        selected = [
+            event
+            for event in timeline
+            if (event.get("type") == "tool_call" and event.get("name") in {"read_file", "write_file", "list_directory"})
+            or (event.get("type") == "tool_result" and event.get("name") in {"read_file", "write_file", "list_directory"})
+        ]
+    else:
+        selected = timeline
     blocks: list[str] = []
-    for event in reversed(timeline[-40:]):
+    for event in reversed(selected[-40:]):
         tone = "default"
         if event.get("type") == "error":
             tone = "error"

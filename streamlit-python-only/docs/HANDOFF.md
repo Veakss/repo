@@ -24,6 +24,7 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
    - preserve the current event contract used by the Streamlit shell
 2. Future work is now incremental rather than milestone-blocking:
    - improve real-model reliability on the interactive terminal tool chain
+   - keep closing UI gaps against the original JS shell
    - deeper Thales live validation when credentials are available
    - UI refinements and performance polish
 3. Keep using the live verification scripts when changing contracts:
@@ -109,6 +110,11 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
   - blocked-command diagnostics
   - terminal lifecycle events in the run timeline
   - custom Streamlit terminal surface backed by browser-side JS
+- JS-like orchestration controls currently support:
+  - `policy_profile`
+  - module toggles for Web/RAG/Apps/Clarification
+  - one-run forced modes via `/rag`, `/web`, `/apps`, `/clarify`
+  - timeline filtering (`all`, `errors`, `approvals`, `terminal`, `files`)
 - `tests/test_streamlit_app.py` covers the core phase 3 layout through `streamlit.testing.v1`
 - `scripts/verify_lot3.py` runs the full project test suite plus compile checks
 - `scripts/verify_lot3_live.py` starts real sidecar and backend processes, uses the local Mongo daemon, drives the Streamlit app through `AppTest`, and verifies persisted assistant output
@@ -126,3 +132,4 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
   - pass: `terminal_single_shot`
   - pass: `approval_write_file`
   - fail: `interactive_terminal` timed out
+- latest parity pass also fixed a live sidecar/runtime signature mismatch that mocks did not catch; keep real backend+sidecar smokes in the loop when changing runtime factory signatures

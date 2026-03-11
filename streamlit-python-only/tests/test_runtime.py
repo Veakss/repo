@@ -21,8 +21,10 @@ class FakeModel:
     def __init__(self, responses: list[AIMessage]) -> None:
         self.responses = responses
         self.invocations: list[list[BaseMessage]] = []
+        self.bound_tool_names: list[str] = []
 
-    def bind_tools(self, _tools):
+    def bind_tools(self, tools):
+        self.bound_tool_names = [tool.name for tool in tools]
         return self
 
     def invoke(self, messages: list[BaseMessage]):
@@ -41,11 +43,12 @@ def make_runtime(fake_model: FakeModel, tmp_path: Path, provider_mode: str = "na
     deps = RuntimeDependencies(
         model_factory=lambda _profile, _model: fake_model,
         provider_resolver=lambda _profile, _model: FakeProvider(provider_mode),
-        tool_registry_factory=lambda workspace_root, session_id, run_id: create_default_tool_registry(
+        tool_registry_factory=lambda workspace_root, session_id, run_id, tool_toggles=None: create_default_tool_registry(
             workspace_root,
             session_id=session_id,
             run_id=run_id,
             terminal_manager=terminals,
+            tool_toggles=tool_toggles,
         ),
         state_store=store,
         terminal_manager=terminals,
@@ -204,3 +207,32 @@ async def test_runtime_can_complete_interactive_terminal_task(tmp_path: Path):
     assert any(event["type"] == "terminal_control_changed" for event in events)
     assert any(event["type"] == "tool_call" and event["name"] == "terminal_wait_for_output" for event in events)
     assert any(event["type"] == "run_state" and event["state"] == "completed" for event in events)
+
+
+@pytest.mark.anyio
+async def test_runtime_respects_tool_toggles_for_web(tmp_path: Path):
+    model = FakeModel([AIMessage(content="No tools used.")])
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(
+        sessionId="s1",
+        messages=[ChatMessage(role="user", content="search the web")],
+        workspaceRoot=str(tmp_path),
+        toolToggles={"webSearch": False, "rag": True, "appActions": True, "clarification": True},
+    )
+    _ = [event async for event in runtime.stream_chat(request, [AIMessage(content="ignored")])]
+    assert "web_search" not in model.bound_tool_names
+    assert "rag_lookup" in model.bound_tool_names
+
+
+@pytest.mark.anyio
+async def test_runtime_injects_forced_rag_instruction(tmp_path: Path):
+    model = FakeModel([AIMessage(content="Used forced mode.")])
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(
+        sessionId="s1",
+        messages=[ChatMessage(role="user", content="find this in local docs")],
+        workspaceRoot=str(tmp_path),
+        forceToolUse="rag",
+    )
+    _ = [event async for event in runtime.stream_chat(request, [AIMessage(content="ignored")])]
+    assert any(isinstance(message, SystemMessage) and "must use rag_lookup" in message.content for message in model.invocations[0])

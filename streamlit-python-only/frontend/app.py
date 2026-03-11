@@ -24,6 +24,25 @@ except ModuleNotFoundError:
 ClientFactory = Callable[[], BackendClient]
 
 
+def parse_tool_directive(raw_text: str, toggles: dict[str, bool]) -> tuple[str, dict[str, bool], str | None]:
+    text = raw_text.strip()
+    commands: list[tuple[list[str], str, str]] = [
+        (["/rag"], "rag", "rag"),
+        (["/web"], "web", "webSearch"),
+        (["/apps"], "apps", "appActions"),
+        (["/clarify", "/clarification"], "clarification", "clarification"),
+    ]
+    lowered = text.lower()
+    for prefixes, forced_mode, toggle_key in commands:
+        match = next((prefix for prefix in prefixes if lowered == prefix or lowered.startswith(prefix + " ")), None)
+        if not match:
+            continue
+        message = text[len(match) :].strip() or raw_text.strip()
+        next_toggles = {**toggles, toggle_key: True}
+        return message, next_toggles, forced_mode
+    return raw_text.strip(), toggles, None
+
+
 def ensure_state() -> None:
     settings = get_settings()
     defaults: dict[str, Any] = {
@@ -59,6 +78,18 @@ def ensure_state() -> None:
         "matrix_report": None,
         "matrix_compare_report_id": None,
         "matrix_compare_payload": None,
+        "policy_profile": "ask_when_necessary",
+        "timeline_filter": "all",
+        "tool_toggles": {
+            "webSearch": True,
+            "rag": True,
+            "appActions": True,
+            "clarification": True,
+        },
+        "tool_toggle_web": True,
+        "tool_toggle_rag": True,
+        "tool_toggle_apps": True,
+        "tool_toggle_clarification": True,
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -221,16 +252,20 @@ def on_send(prompt: str, client: BackendClient) -> None:
         session_id = st.session_state["session_id"]
     assert session_id is not None
 
+    cleaned_prompt, next_toggles, force_tool_use = parse_tool_directive(prompt, st.session_state["tool_toggles"])
     payload = {
         "session_id": session_id,
-        "message": prompt,
+        "message": cleaned_prompt,
         "workspace_root": str(get_settings().resolved_workspace_root),
         "model": st.session_state["selected_model"],
         "allow_writes": True,
+        "policy_profile": st.session_state["policy_profile"],
+        "tool_toggles": next_toggles,
+        "force_tool_use": force_tool_use,
     }
     events: list[dict[str, Any]] = []
     assistant_text = ""
-    st.session_state["messages"].append({"role": "user", "content": prompt})
+    st.session_state["messages"].append({"role": "user", "content": cleaned_prompt})
     with st.chat_message("assistant"):
         placeholder = st.empty()
         for event in client.stream_chat(payload):
@@ -314,12 +349,22 @@ def render_header() -> None:
     if st.session_state["selected_model"] not in model_labels:
         st.session_state["selected_model"] = model_labels[0]
 
-    title_col, meta_col = st.columns([2.3, 1.1])
+    title_col, meta_col = st.columns([2.0, 1.4])
     with title_col:
         st.title("Continue Better")
-        st.caption("Streamlit control plane for the Python-only stack")
+        st.caption("Streamlit control plane with JS-parity run controls")
     with meta_col:
         st.selectbox("Model", options=model_labels, key="selected_model")
+        st.selectbox(
+            "Policy",
+            options=["ask_when_necessary", "always_ask", "always_allow"],
+            key="policy_profile",
+            format_func=lambda value: {
+                "ask_when_necessary": "Ask When Necessary",
+                "always_ask": "Always Ask",
+                "always_allow": "Always Allow",
+            }.get(value, value),
+        )
         badges = []
         if capabilities.get("webSearch"):
             badges.append("Web")
@@ -337,6 +382,25 @@ def render_header() -> None:
     metrics[2].metric("Pending Approvals", len(st.session_state["pending_approvals"]))
     metrics[3].metric("Pending Clarification", "yes" if st.session_state["pending_clarification"] else "no")
 
+    control_cols = st.columns([1.1, 1.1, 1.1, 1.1, 1.2])
+    control_cols[0].checkbox("Web", key="tool_toggle_web", value=st.session_state["tool_toggles"]["webSearch"])
+    control_cols[1].checkbox("RAG", key="tool_toggle_rag", value=st.session_state["tool_toggles"]["rag"])
+    control_cols[2].checkbox("Apps", key="tool_toggle_apps", value=st.session_state["tool_toggles"]["appActions"])
+    control_cols[3].checkbox("Clarify", key="tool_toggle_clarification", value=st.session_state["tool_toggles"]["clarification"])
+    control_cols[4].selectbox(
+        "Timeline",
+        options=["all", "errors", "approvals", "terminal", "files"],
+        key="timeline_filter",
+        format_func=lambda value: value.title(),
+    )
+    st.session_state["tool_toggles"] = {
+        "webSearch": bool(st.session_state.get("tool_toggle_web", True)),
+        "rag": bool(st.session_state.get("tool_toggle_rag", True)),
+        "appActions": bool(st.session_state.get("tool_toggle_apps", True)),
+        "clarification": bool(st.session_state.get("tool_toggle_clarification", True)),
+    }
+    st.caption("Directives: `/rag`, `/web`, `/apps`, `/clarify` force the matching orchestration mode for one run.")
+
 
 def render_chat_panel(client: BackendClient) -> None:
     for message in st.session_state["messages"]:
@@ -352,7 +416,7 @@ def render_chat_panel(client: BackendClient) -> None:
 
 
 def render_timeline_panel() -> None:
-    st.markdown(build_timeline_html(st.session_state["timeline"]), unsafe_allow_html=True)
+    st.markdown(build_timeline_html(st.session_state["timeline"], st.session_state.get("timeline_filter", "all")), unsafe_allow_html=True)
 
 
 def render_approvals_panel(client: BackendClient) -> None:
