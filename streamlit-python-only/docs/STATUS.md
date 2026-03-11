@@ -38,6 +38,8 @@
 - backend API tests added for session CRUD, run persistence, approval persistence, and clarification persistence
 - store unit tests added for cascade delete and artifact mirroring
 - lot 2 verification script added
+- live MongoDB 8.0 installed locally via Homebrew
+- live lot 2 backend verification against a real Mongo daemon passed
 
 ## In Progress
 
@@ -80,4 +82,6 @@
 - verified `pytest tests/test_store.py tests/test_backend_api.py tests/test_providers.py tests/test_runtime.py tests/test_sidecar_api.py`
 - verified `python scripts/verify_lot2.py`
 - verified `python -m compileall src backend sidecar frontend tests scripts`
-- confirmed no local Mongo process is available on this machine, so live backend smoke against a real Mongo daemon could not be run here
+- installed `mongodb-community@8.0` with Homebrew and started it via `brew services`
+- verified `mongosh --eval 'db.adminCommand({ ping: 1 })'` returns `{ ok: 1 }`
+- verified `python scripts/verify_lot2_live_mongo.py` against a real local Mongo daemon

@@ -33,7 +33,8 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
 ## Practical Constraints
 
 - Docker is not installed on this machine right now, so the local Mongo bootstrap must not assume Docker
-- `mongod` is not installed and port `27017` is closed, so live backend validation currently relies on `mongomock`-backed tests rather than a real daemon
+- MongoDB 8.0 is now installed locally through Homebrew and running through `brew services`
+- port `27017` is open and `mongosh` ping succeeds on this machine
 
 ## Legacy Reference Areas
 
@@ -77,3 +78,4 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
 - `tests/test_store.py` covers persistence and cascading delete behavior
 - `tests/test_backend_api.py` covers backend session CRUD, streaming persistence, approvals, and clarifications
 - `scripts/verify_lot2.py` runs the full lot 2 verification set and compile checks
+- `scripts/verify_lot2_live_mongo.py` verifies the backend against a real local Mongo daemon while keeping the sidecar in-process
