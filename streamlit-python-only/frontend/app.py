@@ -436,29 +436,9 @@ def render_header() -> None:
             f'<div class="cb-capability-row">{"".join(f"<span class=\"cb-capability-pill\">{badge}</span>" for badge in badges) or "<span class=\"cb-capability-pill\">No capabilities</span>"}</div>',
             unsafe_allow_html=True,
         )
-    tool_options = [
-        ("Web", "webSearch"),
-        ("RAG", "rag"),
-        ("Apps", "appActions"),
-        ("Clarify", "clarification"),
-    ]
-    selected_tools = [
-        label
-        for label, toggle_key in tool_options
-        if bool(st.session_state["tool_toggles"].get(toggle_key, False))
-    ]
-    controls_left, controls_right = st.columns([1.45, 0.72], gap="medium")
+    controls_left, controls_right = st.columns([1.6, 0.68], gap="medium")
     with controls_left:
-        st.markdown("##### Tool Access")
-        chosen_tools = st.segmented_control(
-            "Tool access",
-            options=[label for label, _ in tool_options],
-            default=selected_tools,
-            selection_mode="multi",
-            key="tool_access_segments",
-            label_visibility="collapsed",
-        )
-        chosen_tool_labels = set(chosen_tools or [])
+        st.caption("Directives: `/rag`, `/web`, `/apps`, `/clarify` force the matching orchestration mode for one run.")
     with controls_right:
         st.markdown("##### Timeline")
         st.selectbox(
@@ -468,11 +448,6 @@ def render_header() -> None:
             format_func=lambda value: value.title(),
             label_visibility="collapsed",
         )
-    st.session_state["tool_toggles"] = {
-        toggle_key: label in chosen_tool_labels
-        for label, toggle_key in tool_options
-    }
-    st.caption("Directives: `/rag`, `/web`, `/apps`, `/clarify` force the matching orchestration mode for one run.")
     st.markdown('<div class="cb-header-divider"></div>', unsafe_allow_html=True)
 
 
@@ -489,6 +464,35 @@ def render_chat_panel(client: BackendClient) -> None:
             st.markdown(prompt)
         on_send(prompt, client)
         st.rerun()
+
+
+def render_floating_tool_access() -> None:
+    tool_options = [
+        ("Web", "webSearch"),
+        ("RAG", "rag"),
+        ("Apps", "appActions"),
+        ("Clarify", "clarification"),
+    ]
+    selected_tools = [
+        label
+        for label, toggle_key in tool_options
+        if bool(st.session_state["tool_toggles"].get(toggle_key, False))
+    ]
+    with st.container():
+        st.markdown('<div id="cb-floating-tool-anchor"></div>', unsafe_allow_html=True)
+        chosen_tools = st.segmented_control(
+            "Tool access",
+            options=[label for label, _ in tool_options],
+            default=selected_tools,
+            selection_mode="multi",
+            key="tool_access_segments",
+            label_visibility="collapsed",
+        )
+    chosen_tool_labels = set(chosen_tools or [])
+    st.session_state["tool_toggles"] = {
+        toggle_key: label in chosen_tool_labels
+        for label, toggle_key in tool_options
+    }
 
 
 def render_timeline_panel() -> None:
@@ -1041,16 +1045,16 @@ def inject_css() -> None:
             min-height: 2.3rem !important;
             padding: 0.2rem 0.8rem !important;
             border: 1px solid transparent !important;
-            background: transparent !important;
-            color: rgba(223, 232, 241, 0.72) !important;
+            background: rgba(120, 130, 145, 0.12) !important;
+            color: rgba(203, 210, 219, 0.88) !important;
             font-size: 0.9rem !important;
             font-weight: 600 !important;
         }
         [data-testid="stSegmentedControl"] button[aria-pressed="true"] {
-            background: linear-gradient(180deg, rgba(126,203,255,0.22), rgba(126,203,255,0.1)) !important;
-            border-color: rgba(126,203,255,0.24) !important;
+            background: linear-gradient(180deg, rgba(0, 148, 255, 0.46), rgba(0, 120, 255, 0.28)) !important;
+            border-color: rgba(0, 162, 255, 0.72) !important;
             color: #f2f8ff !important;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(0, 162, 255, 0.18);
         }
         [data-testid="stChatInput"] {
             position: fixed;
@@ -1069,6 +1073,24 @@ def inject_css() -> None:
         [data-testid="stChatInput"] textarea,
         [data-testid="stChatInput"] input {
             background: transparent !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(#cb-floating-tool-anchor) {
+            position: fixed;
+            left: calc(50% + min(24vw, 430px) + 1rem);
+            bottom: 1rem;
+            width: min(18rem, calc(100vw - (50% + min(24vw, 430px) + 2rem)));
+            z-index: 998;
+        }
+        div[data-testid="stVerticalBlock"]:has(#cb-floating-tool-anchor) [data-testid="stSegmentedControl"] {
+            background: linear-gradient(180deg, rgba(7, 15, 24, 0.94), rgba(7, 15, 24, 0.82));
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 18px 50px rgba(0,0,0,0.26);
+            backdrop-filter: blur(18px);
+            padding: 0.45rem;
+        }
+        #cb-floating-tool-anchor {
+            display: none;
         }
         [data-testid="column"] {
             min-height: calc(100vh - 13rem);
@@ -1089,6 +1111,22 @@ def inject_css() -> None:
             }
             [data-testid="stChatInput"] {
                 width: min(64vw, 900px);
+            }
+            div[data-testid="stVerticalBlock"]:has(#cb-floating-tool-anchor) {
+                left: calc(50% + min(32vw, 450px) - 7rem);
+                bottom: 4.8rem;
+                width: 14rem;
+            }
+        }
+        @media (max-width: 900px) {
+            div[data-testid="stVerticalBlock"]:has(#cb-floating-tool-anchor) {
+                left: 50%;
+                transform: translateX(-50%);
+                bottom: 4.9rem;
+                width: min(88vw, 22rem);
+            }
+            [data-testid="stChatInput"] {
+                width: min(88vw, 900px);
             }
         }
         </style>
@@ -1119,6 +1157,7 @@ def run_app(client_factory: ClientFactory | None = None) -> None:
         render_chat_panel(client)
     with inspector:
         render_status_panels(client)
+    render_floating_tool_access()
 
 
 def main() -> None:
