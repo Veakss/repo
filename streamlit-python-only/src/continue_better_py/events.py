@@ -96,6 +96,33 @@ def terminal_opened(run_id: str, terminal_id: str, command: str, cwd: str) -> di
     }
 
 
+def terminal_data(run_id: str | None, terminal_id: str, chunk: str, stream: str = "pty") -> dict:
+    event = {
+        "type": "terminal_data",
+        "terminalId": terminal_id,
+        "chunk": chunk,
+        "stream": stream,
+        "timestamp": now_iso(),
+    }
+    if run_id:
+        event["runId"] = run_id
+    return event
+
+
+def terminal_control_changed(run_id: str | None, terminal_id: str, owner: str, reason: str | None = None) -> dict:
+    event = {
+        "type": "terminal_control_changed",
+        "terminalId": terminal_id,
+        "owner": owner,
+        "timestamp": now_iso(),
+    }
+    if run_id:
+        event["runId"] = run_id
+    if reason:
+        event["reason"] = reason
+    return event
+
+
 def terminal_exit(run_id: str, terminal_id: str, exit_code: int, output: str) -> dict:
     return {
         "type": "terminal_exit",

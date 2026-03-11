@@ -6,6 +6,7 @@ import sys
 from typing import Any
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from continue_better_py.settings import get_settings
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -14,10 +15,10 @@ if str(CURRENT_DIR) not in sys.path:
 
 try:
     from frontend.api_client import BackendClient
-    from frontend.ui_state import build_terminal_html, build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
+    from frontend.ui_state import build_terminal_component_html, build_terminal_html, build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
 except ModuleNotFoundError:
     from api_client import BackendClient
-    from ui_state import build_terminal_html, build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
+    from ui_state import build_terminal_component_html, build_terminal_html, build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
 
 
 ClientFactory = Callable[[], BackendClient]
@@ -538,7 +539,21 @@ def render_rag_panel(client: BackendClient) -> None:
 
 
 def render_terminal_panel() -> None:
-    st.markdown(build_terminal_html(st.session_state["timeline"]), unsafe_allow_html=True)
+    timeline = st.session_state["timeline"]
+    latest_terminal_id = next((str(event.get("terminalId")) for event in reversed(timeline) if event.get("terminalId")), None)
+    components.html(
+        build_terminal_component_html(
+            backend_url=st.session_state["backend_url"],
+            workspace_root=str(get_settings().resolved_workspace_root),
+            session_id=st.session_state.get("session_id"),
+            run_id=st.session_state.get("active_run_id"),
+            initial_terminal_id=latest_terminal_id,
+        ),
+        height=470,
+        scrolling=False,
+    )
+    st.markdown("##### Recent Terminal Events")
+    st.markdown(build_terminal_html(timeline), unsafe_allow_html=True)
 
 
 def _format_ratio(value: float | None) -> str:

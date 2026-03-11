@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from continue_better_py.events import sse
 from continue_better_py.providers import list_available_models, resolve_provider
 from continue_better_py.rag import RagService
-from continue_better_py.runtime import RuntimeEngine
+from continue_better_py.runtime import RuntimeDependencies, RuntimeEngine
 from continue_better_py.schemas import (
     ApprovalDecisionRequest,
     ChatMessage,
@@ -21,8 +23,17 @@ from continue_better_py.schemas import (
     RagProfileRenameRequest,
     RagSessionMemoryPatchRequest,
     SidecarChatRequest,
+    TerminalControlRequest,
+    TerminalCreateRequest,
+    TerminalInterruptRequest,
+    TerminalResizeRequest,
+    TerminalWriteRequest,
 )
 from continue_better_py.settings import ensure_runtime_dirs, get_settings
+from continue_better_py.terminal_manager import get_terminal_manager
+from continue_better_py.providers import build_chat_model
+from continue_better_py.run_state import RunStateStore
+from continue_better_py.tool_registry import create_default_tool_registry
 
 
 def to_langchain_message(message: ChatMessage):
@@ -33,11 +44,36 @@ def to_langchain_message(message: ChatMessage):
     return HumanMessage(content=message.content)
 
 
-def create_sidecar_app(runtime: RuntimeEngine | None = None, rag_service: RagService | None = None) -> FastAPI:
+def create_sidecar_app(
+    runtime: RuntimeEngine | None = None,
+    rag_service: RagService | None = None,
+    terminal_manager=None,
+) -> FastAPI:
     ensure_runtime_dirs()
     settings = get_settings()
+    terminal_manager = terminal_manager or get_terminal_manager()
     app = FastAPI(title="Continue Better Python Sidecar", version="0.1.0")
-    runtime = runtime or RuntimeEngine()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://127.0.0.1:8501", "http://localhost:8501"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    runtime = runtime or RuntimeEngine(
+        RuntimeDependencies(
+            model_factory=build_chat_model,
+            provider_resolver=resolve_provider,
+            tool_registry_factory=lambda workspace_root, session_id, run_id: create_default_tool_registry(
+                workspace_root,
+                session_id=session_id,
+                run_id=run_id,
+                terminal_manager=terminal_manager,
+            ),
+            state_store=RunStateStore(),
+            terminal_manager=terminal_manager,
+        )
+    )
     rag_service = rag_service or RagService(settings=settings)
 
     @app.get("/health")
@@ -94,6 +130,94 @@ def create_sidecar_app(runtime: RuntimeEngine | None = None, rag_service: RagSer
                     yield sse(event)
             except KeyError:
                 raise HTTPException(status_code=404, detail="Clarification not found")
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    @app.post("/v1/terminals")
+    def create_terminal(request: TerminalCreateRequest) -> dict[str, Any]:
+        workspace_root = request.workspace_root or str(settings.resolved_workspace_root)
+        try:
+            return terminal_manager.create_terminal(
+                workspace_root=workspace_root,
+                session_id=request.session_id,
+                run_id=request.run_id,
+                cwd=request.cwd,
+                shell=request.shell,
+                cols=request.cols,
+                rows=request.rows,
+                owner=request.owner,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/v1/terminals/{terminal_id}")
+    def get_terminal(terminal_id: str) -> dict[str, Any]:
+        try:
+            return terminal_manager.get_terminal(terminal_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Terminal not found") from exc
+
+    @app.post("/v1/terminals/{terminal_id}/write")
+    def write_terminal(terminal_id: str, request: TerminalWriteRequest) -> dict[str, Any]:
+        try:
+            return terminal_manager.write_terminal(terminal_id, request.data, request.source)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Terminal not found") from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/v1/terminals/{terminal_id}/interrupt")
+    def interrupt_terminal(terminal_id: str, request: TerminalInterruptRequest) -> dict[str, Any]:
+        try:
+            return terminal_manager.interrupt_terminal(terminal_id, request.source)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Terminal not found") from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/v1/terminals/{terminal_id}/resize")
+    def resize_terminal(terminal_id: str, request: TerminalResizeRequest) -> dict[str, Any]:
+        try:
+            return terminal_manager.resize_terminal(terminal_id, request.cols, request.rows)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Terminal not found") from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/v1/terminals/{terminal_id}/control")
+    def set_terminal_control(terminal_id: str, request: TerminalControlRequest) -> dict[str, Any]:
+        try:
+            return terminal_manager.set_control(terminal_id, request.owner, request.reason)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Terminal not found") from exc
+
+    @app.post("/v1/terminals/{terminal_id}/close")
+    def close_terminal(terminal_id: str) -> dict[str, Any]:
+        try:
+            return terminal_manager.close_terminal(terminal_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Terminal not found") from exc
+
+    @app.get("/v1/terminals/{terminal_id}/stream")
+    async def stream_terminal(terminal_id: str):
+        try:
+            subscription, initial, record = terminal_manager.stream_subscription(terminal_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Terminal not found") from exc
+
+        async def event_generator():
+            try:
+                for event in initial:
+                    yield sse(event)
+                while True:
+                    event = await asyncio.to_thread(subscription.get)
+                    yield sse(event)
+                    if event.get("type") == "terminal_exit":
+                        break
+            finally:
+                terminal_manager.remove_subscription(record, subscription)
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 

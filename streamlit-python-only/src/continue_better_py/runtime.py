@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, TypedDict
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
@@ -28,6 +28,7 @@ from continue_better_py.events import (
 from continue_better_py.providers import ResolvedProvider, build_chat_model, resolve_provider
 from continue_better_py.run_state import RunStateStore, deserialize_messages, serialize_messages
 from continue_better_py.schemas import ApprovalDecisionRequest, ClarificationDecisionRequest, SidecarChatRequest
+from continue_better_py.terminal_manager import TerminalManager
 from continue_better_py.tool_registry import ToolRegistry, create_default_tool_registry
 
 
@@ -50,8 +51,9 @@ class AgentState(TypedDict):
 class RuntimeDependencies:
     model_factory: Callable[[str | None, str | None], Any]
     provider_resolver: Callable[[str | None, str | None], ResolvedProvider]
-    tool_registry_factory: Callable[[str, str | None], ToolRegistry]
+    tool_registry_factory: Callable[[str, str | None, str | None], ToolRegistry]
     state_store: RunStateStore
+    terminal_manager: TerminalManager = field(default_factory=TerminalManager)
 
 
 def split_for_streaming(text: str) -> list[str]:
@@ -101,18 +103,37 @@ def decode_terminal_payload(raw: str) -> dict[str, Any] | None:
     return payload
 
 
+def decode_terminal_tool_payload(raw: str) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(str(raw or ""))
+    except Exception:
+        return None
+    if not isinstance(payload, dict) or payload.get("kind") != "terminal_tool":
+        return None
+    return payload
+
+
 class RuntimeEngine:
     def __init__(self, dependencies: RuntimeDependencies | None = None) -> None:
-        self.deps = dependencies or RuntimeDependencies(
-            model_factory=build_chat_model,
-            provider_resolver=resolve_provider,
-            tool_registry_factory=create_default_tool_registry,
-            state_store=RunStateStore(),
-        )
+        if dependencies is None:
+            terminal_manager = TerminalManager()
+            dependencies = RuntimeDependencies(
+                model_factory=build_chat_model,
+                provider_resolver=resolve_provider,
+                tool_registry_factory=lambda workspace_root, session_id, run_id: create_default_tool_registry(
+                    workspace_root,
+                    session_id=session_id,
+                    run_id=run_id,
+                    terminal_manager=terminal_manager,
+                ),
+                state_store=RunStateStore(),
+                terminal_manager=terminal_manager,
+            )
+        self.deps = dependencies
         self.graph = self._create_graph()
 
     def capabilities_payload(self, workspace_root: str, session_id: str | None = None) -> list[dict]:
-        return self.deps.tool_registry_factory(workspace_root, session_id).module_payloads()
+        return self.deps.tool_registry_factory(workspace_root, session_id, None).module_payloads()
 
     def _materialize_tool_result(
         self,
@@ -122,6 +143,35 @@ class RuntimeEngine:
         raw_result: str,
     ) -> tuple[list[dict[str, Any]], str, bool]:
         if tool_name != "run_terminal":
+            terminal_tool_payload = decode_terminal_tool_payload(raw_result)
+            if terminal_tool_payload:
+                events = list(terminal_tool_payload.get("events", []))
+                terminal = terminal_tool_payload.get("terminal", {}) if isinstance(terminal_tool_payload.get("terminal"), dict) else {}
+                snapshot = terminal_tool_payload.get("snapshot", {}) if isinstance(terminal_tool_payload.get("snapshot"), dict) else {}
+                matched = terminal_tool_payload.get("matched")
+                tail = str(terminal_tool_payload.get("tail") or terminal.get("tail") or snapshot.get("tail") or "")
+                preview_lines = [
+                    f"Tool: {terminal_tool_payload.get('tool', tool_name)}",
+                    f"Terminal: {terminal.get('terminalId') or snapshot.get('terminalId') or ''}",
+                ]
+                if terminal.get("owner"):
+                    preview_lines.append(f"Owner: {terminal['owner']}")
+                if matched is not None:
+                    preview_lines.append(f"Matched: {matched}")
+                if tail:
+                    preview_lines.extend(["Tail:", tail[-2000:]])
+                formatted = "\n".join(line for line in preview_lines if line)
+                events.append(
+                    {
+                        "type": "tool_result",
+                        "runId": run_id,
+                        "actionId": tool_id,
+                        "name": tool_name,
+                        "ok": True,
+                        "preview": formatted[:400],
+                    }
+                )
+                return events, formatted, True
             return (
                 [
                     {
@@ -231,7 +281,7 @@ class RuntimeEngine:
 
     def _create_graph(self):
         def agent(state: AgentState) -> AgentState:
-            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"])
+            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"])
             model = self.deps.model_factory(state.get("profile"), state.get("model"))
             provider = self.deps.provider_resolver(state.get("profile"), state.get("model"))
             response = model.bind_tools(registry.enabled_tools()).invoke(state["messages"])
@@ -243,7 +293,7 @@ class RuntimeEngine:
             }
 
         def tools(state: AgentState) -> AgentState:
-            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"])
+            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"])
             last_message = state["messages"][-1]
             emitted_messages: list[BaseMessage] = []
             tool_events: list[dict[str, Any]] = []
@@ -407,7 +457,7 @@ class RuntimeEngine:
         run_id = state["run_id"]
         yield approval_decision(run_id, request.approval_id, request.decision)
         if request.decision == "approved":
-            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"])
+            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"])
             registered = registry.get(pending["name"])
             if not registered:
                 yield error_event("Approved tool is no longer available")

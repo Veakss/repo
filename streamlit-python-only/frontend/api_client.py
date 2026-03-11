@@ -109,6 +109,57 @@ class BackendClient:
             response.raise_for_status()
             return response.json()
 
+    def create_terminal(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with self._client(timeout=30.0) as client:
+            response = client.post("/v1/terminals", json=payload)
+            response.raise_for_status()
+            return response.json()
+
+    def get_terminal(self, terminal_id: str) -> dict[str, Any]:
+        with self._client(timeout=30.0) as client:
+            response = client.get(f"/v1/terminals/{terminal_id}")
+            response.raise_for_status()
+            return response.json()
+
+    def write_terminal(self, terminal_id: str, data: str, source: str = "user") -> dict[str, Any]:
+        with self._client(timeout=30.0) as client:
+            response = client.post(f"/v1/terminals/{terminal_id}/write", json={"data": data, "source": source})
+            response.raise_for_status()
+            return response.json()
+
+    def interrupt_terminal(self, terminal_id: str, source: str = "user") -> dict[str, Any]:
+        with self._client(timeout=30.0) as client:
+            response = client.post(f"/v1/terminals/{terminal_id}/interrupt", json={"source": source})
+            response.raise_for_status()
+            return response.json()
+
+    def resize_terminal(self, terminal_id: str, cols: int, rows: int) -> dict[str, Any]:
+        with self._client(timeout=30.0) as client:
+            response = client.post(f"/v1/terminals/{terminal_id}/resize", json={"cols": cols, "rows": rows})
+            response.raise_for_status()
+            return response.json()
+
+    def set_terminal_control(self, terminal_id: str, owner: str, reason: str | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"owner": owner}
+        if reason:
+            payload["reason"] = reason
+        with self._client(timeout=30.0) as client:
+            response = client.post(f"/v1/terminals/{terminal_id}/control", json=payload)
+            response.raise_for_status()
+            return response.json()
+
+    def close_terminal(self, terminal_id: str) -> dict[str, Any]:
+        with self._client(timeout=30.0) as client:
+            response = client.post(f"/v1/terminals/{terminal_id}/close")
+            response.raise_for_status()
+            return response.json()
+
+    def stream_terminal(self, terminal_id: str) -> Iterator[dict[str, Any]]:
+        with self._client(timeout=None) as client:
+            with client.stream("GET", f"/v1/terminals/{terminal_id}/stream") as response:
+                response.raise_for_status()
+                yield from iter_sse_events(response)
+
     def rag_list_profiles(self) -> dict[str, Any]:
         with self._client() as client:
             response = client.get("/v1/rag/profiles")

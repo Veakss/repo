@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from langchain_core.tools import StructuredTool
 
 from continue_better_py.settings import get_settings
+from continue_better_py.terminal_manager import TerminalManager
 from continue_better_py.tooling import ToolDefinition, build_tool_definitions
 
 
@@ -76,9 +77,19 @@ class ToolRegistry:
         return payloads
 
 
-def create_default_tool_registry(workspace_root: str, session_id: str | None = None) -> ToolRegistry:
+def create_default_tool_registry(
+    workspace_root: str,
+    session_id: str | None = None,
+    run_id: str | None = None,
+    terminal_manager: TerminalManager | None = None,
+) -> ToolRegistry:
     settings = get_settings()
-    definitions = build_tool_definitions(workspace_root, session_id=session_id)
+    definitions = build_tool_definitions(
+        workspace_root,
+        session_id=session_id,
+        run_id=run_id,
+        terminal_manager=terminal_manager,
+    )
     module_flags = {
         "files": settings.enable_file_tools,
         "clarification": settings.enable_tool_clarification,

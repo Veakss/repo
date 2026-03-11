@@ -44,6 +44,36 @@ class ClarificationDecisionRequest(BaseModel):
     answer: str
 
 
+class TerminalCreateRequest(BaseModel):
+    session_id: str | None = None
+    run_id: str | None = None
+    workspace_root: str | None = None
+    cwd: str | None = None
+    shell: str | None = None
+    cols: int | None = None
+    rows: int | None = None
+    owner: str = "user"
+
+
+class TerminalWriteRequest(BaseModel):
+    data: str
+    source: str = "user"
+
+
+class TerminalResizeRequest(BaseModel):
+    cols: int
+    rows: int
+
+
+class TerminalControlRequest(BaseModel):
+    owner: str
+    reason: str | None = None
+
+
+class TerminalInterruptRequest(BaseModel):
+    source: str = "user"
+
+
 class SessionCreateRequest(BaseModel):
     title: str | None = None
 

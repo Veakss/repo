@@ -62,6 +62,15 @@
 - Streamlit terminal tab now renders real terminal activity from run events
 - provider probe and lot 6 verification scripts added for operational hardening
 - run scripts now prefer the local `.venv` interpreter and load `.env`
+- PTY-backed terminal manager added with create/write/interrupt/resize/control/close/stream APIs
+- runtime terminal tools expanded to cover `open_terminal`, `terminal_write`, `terminal_interrupt`, `terminal_request_control`, `terminal_release_control`, `terminal_snapshot`, `terminal_wait_for_output`, and `terminal_close`
+- backend and sidecar now expose local CORS-compatible terminal endpoints for the Streamlit custom terminal component
+- Streamlit terminal tab now includes a custom interactive terminal surface instead of a static event-only view
+- real capability evaluation script added at `scripts/evaluate_capabilities.py`
+- live capability evaluation against OpenRouter/Gemini currently passes 2 out of 3 tasks:
+  - `terminal_single_shot`: pass
+  - `approval_write_file`: pass
+  - `interactive_terminal`: timeout with the real model
 
 ## In Progress
 
@@ -71,6 +80,7 @@
 
 - optional future enhancements stay regression-free
 - Thales-specific live validation can be rerun when credentials are available on this machine
+- interactive terminal live prompting should be improved until `scripts/evaluate_capabilities.py` is fully green
 
 ## Update Log
 
@@ -133,3 +143,12 @@
 - verified `pytest` across the full Python subtree after lot 6 changes: `28 passed`
 - verified `python scripts/verify_lot6.py`
 - verified `python scripts/verify_lot6_live.py` with real provider probe, backend, sidecar, Mongo, and terminal execution
+- added `src/continue_better_py/terminal_manager.py` to port the old PTY terminal contract into Python
+- expanded runtime/tool registry support for interactive terminal tools and added backend + sidecar terminal endpoints
+- updated the Streamlit terminal tab to embed a custom browser-side terminal surface that talks directly to the backend terminal APIs
+- added runtime/API regression coverage for interactive terminal flows
+- verified `pytest -q` across the full Python subtree after the terminal parity pass: `31 passed`
+- ran `python scripts/evaluate_capabilities.py` live against OpenRouter/Gemini and recorded:
+  - pass: single-shot terminal inspection
+  - pass: approval-gated file creation
+  - fail: interactive terminal scenario timed out under the real model

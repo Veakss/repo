@@ -324,3 +324,73 @@ def test_backend_exposes_matrix_routes(tmp_path):
     compare = client.get("/v1/matrix/compare", params={"current_report_id": report_id, "baseline_report_id": report_id})
     assert compare.status_code == 200
     assert compare.json()["comparison"]["summary"]["currentRuns"] == 1
+
+
+def test_backend_proxies_terminal_routes(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/terminals" and request.method == "POST":
+            return httpx.Response(
+                200,
+                json={
+                    "terminal": {
+                        "terminalId": "term-1",
+                        "runId": "run-terminal-1",
+                        "sessionId": "s1",
+                        "cwd": str(tmp_path),
+                        "shell": "/bin/zsh",
+                        "owner": "user",
+                        "alive": True,
+                        "createdAt": "2026-03-11T12:30:00+00:00",
+                        "updatedAt": "2026-03-11T12:30:00+00:00",
+                        "tail": "",
+                        "backend": "pty",
+                    },
+                    "events": [
+                        {"type": "terminal_opened", "runId": "run-terminal-1", "terminalId": "term-1", "cwd": str(tmp_path), "timestamp": "2026-03-11T12:30:00+00:00"},
+                        {"type": "terminal_control_changed", "runId": "run-terminal-1", "terminalId": "term-1", "owner": "user", "timestamp": "2026-03-11T12:30:00+00:00"},
+                    ],
+                },
+            )
+        if request.url.path == "/v1/terminals/term-1" and request.method == "GET":
+            return httpx.Response(200, json={"terminal": {"terminalId": "term-1", "tail": str(tmp_path), "alive": True, "owner": "user"}})
+        if request.url.path == "/v1/terminals/term-1/write" and request.method == "POST":
+            return httpx.Response(200, json={"terminal": {"terminalId": "term-1", "tail": str(tmp_path), "alive": True, "owner": "user"}, "events": []})
+        if request.url.path == "/v1/terminals/term-1/control" and request.method == "POST":
+            return httpx.Response(
+                200,
+                json={
+                    "terminal": {"terminalId": "term-1", "alive": True, "owner": "agent"},
+                    "events": [{"type": "terminal_control_changed", "runId": "run-terminal-1", "terminalId": "term-1", "owner": "agent", "timestamp": "2026-03-11T12:30:01+00:00"}],
+                },
+            )
+        if request.url.path == "/v1/terminals/term-1/close" and request.method == "POST":
+            return httpx.Response(
+                200,
+                json={
+                    "terminal": {"terminalId": "term-1", "alive": False, "owner": "user"},
+                    "events": [{"type": "terminal_control_changed", "runId": "run-terminal-1", "terminalId": "term-1", "owner": "user", "timestamp": "2026-03-11T12:30:02+00:00"}],
+                },
+            )
+        if request.url.path == "/v1/capabilities":
+            return httpx.Response(200, json={"interactiveTerminal": True})
+        if request.url.path == "/v1/models":
+            return httpx.Response(200, json={"models": [{"id": "gemini"}]})
+        raise AssertionError(f"Unexpected path: {request.url.path} {request.method}")
+
+    client, store = build_test_client(tmp_path, handler)
+    session_id = client.post("/v1/sessions", json={"title": "Terminals"}).json()["session_id"]
+    store.start_run("run-terminal-1", session_id)
+
+    created = client.post("/v1/terminals", json={"session_id": session_id, "run_id": "run-terminal-1", "workspace_root": str(tmp_path), "owner": "user"})
+    assert created.status_code == 200
+    fetched = client.get("/v1/terminals/term-1")
+    assert fetched.status_code == 200
+    wrote = client.post("/v1/terminals/term-1/write", json={"data": "pwd\n", "source": "user"})
+    assert wrote.status_code == 200
+    control = client.post("/v1/terminals/term-1/control", json={"owner": "agent", "reason": "test"})
+    assert control.status_code == 200
+    closed = client.post("/v1/terminals/term-1/close")
+    assert closed.status_code == 200
+
+    run = client.get("/v1/runs/run-terminal-1/events").json()["run"]
+    assert "term-1" in run["meta"]["terminal_ids"]

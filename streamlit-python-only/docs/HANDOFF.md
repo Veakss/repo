@@ -23,7 +23,7 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
    - keep terminal, Matrix, RAG, and provider probes green
    - preserve the current event contract used by the Streamlit shell
 2. Future work is now incremental rather than milestone-blocking:
-   - richer terminal interactivity if needed
+   - improve real-model reliability on the interactive terminal tool chain
    - deeper Thales live validation when credentials are available
    - UI refinements and performance polish
 3. Keep using the live verification scripts when changing contracts:
@@ -32,6 +32,7 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
    - `verify_lot4_live.py`
    - `verify_lot5_live.py`
    - `verify_lot6_live.py`
+   - `evaluate_capabilities.py`
 
 ## Practical Constraints
 
@@ -102,10 +103,12 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
   - Streamlit report browsing and compare view
   - live verification against the real Python stack
 - Terminal currently supports:
-  - single-command execution through the tool registry
+  - PTY-backed terminal sessions
+  - create/write/interrupt/resize/control/close/stream APIs
+  - agent-facing interactive terminal tools in the runtime registry
   - blocked-command diagnostics
   - terminal lifecycle events in the run timeline
-  - Streamlit rendering of terminal output
+  - custom Streamlit terminal surface backed by browser-side JS
 - `tests/test_streamlit_app.py` covers the core phase 3 layout through `streamlit.testing.v1`
 - `scripts/verify_lot3.py` runs the full project test suite plus compile checks
 - `scripts/verify_lot3_live.py` starts real sidecar and backend processes, uses the local Mongo daemon, drives the Streamlit app through `AppTest`, and verifies persisted assistant output
@@ -118,3 +121,8 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
 - `scripts/probe_provider.py` probes the configured provider profile directly
 - `scripts/verify_lot6.py` runs the hardened regression and provider metadata checks
 - `scripts/verify_lot6_live.py` verifies the real provider, terminal tool path, backend, sidecar, and Mongo together
+- `scripts/evaluate_capabilities.py` now runs three live capability tasks against the real model with per-task subprocess timeouts
+- latest live capability result on this Mac with OpenRouter/Gemini:
+  - pass: `terminal_single_shot`
+  - pass: `approval_write_file`
+  - fail: `interactive_terminal` timed out

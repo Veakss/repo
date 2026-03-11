@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from continue_better_py.events import now_iso, sse
@@ -24,6 +25,11 @@ from continue_better_py.schemas import (
     RagSessionMemoryPatchRequest,
     SessionCreateRequest,
     SessionUpdateRequest,
+    TerminalControlRequest,
+    TerminalCreateRequest,
+    TerminalInterruptRequest,
+    TerminalResizeRequest,
+    TerminalWriteRequest,
 )
 from continue_better_py.settings import Settings, ensure_runtime_dirs, get_settings
 from continue_better_py.store import MongoStore
@@ -102,6 +108,13 @@ def create_backend_app(
     settings = settings or get_settings()
     store = store or MongoStore(settings=settings)
     app = FastAPI(title="Continue Better Python Backend", version="0.2.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://127.0.0.1:8501", "http://localhost:8501"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     resolved_sidecar_url = (sidecar_base_url or settings.orchestrator_sidecar_url).rstrip("/")
     matrix_service = matrix_service or MatrixService(store=store, settings=settings)
 
@@ -332,6 +345,109 @@ def create_backend_app(
         if not target.exists() or not target.is_file():
             raise HTTPException(status_code=404, detail="File not found")
         return {"path": str(target.relative_to(settings.resolved_workspace_root)), "content": target.read_text(encoding="utf-8")}
+
+    def persist_terminal_events(events: list[dict[str, Any]]) -> None:
+        for event in events:
+            run_id = event.get("runId")
+            if isinstance(run_id, str) and run_id:
+                try:
+                    store.append_run_event(run_id, event)
+                except Exception:
+                    pass
+
+    @app.post("/v1/terminals")
+    async def create_terminal(request: TerminalCreateRequest) -> dict[str, Any]:
+        payload = request.model_dump(exclude_none=True)
+        payload["workspace_root"] = request.workspace_root or str(settings.resolved_workspace_root)
+        async with sidecar_client(timeout=30.0) as client:
+            response = await client.post("/v1/terminals", json=payload)
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            result = response.json()
+            persist_terminal_events(result.get("events", []))
+            return result
+
+    @app.get("/v1/terminals/{terminal_id}")
+    async def get_terminal(terminal_id: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=30.0) as client:
+            response = await client.get(f"/v1/terminals/{terminal_id}")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.post("/v1/terminals/{terminal_id}/write")
+    async def write_terminal(terminal_id: str, request: TerminalWriteRequest) -> dict[str, Any]:
+        async with sidecar_client(timeout=30.0) as client:
+            response = await client.post(f"/v1/terminals/{terminal_id}/write", json=request.model_dump())
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            result = response.json()
+            persist_terminal_events(result.get("events", []))
+            return result
+
+    @app.post("/v1/terminals/{terminal_id}/interrupt")
+    async def interrupt_terminal(terminal_id: str, request: TerminalInterruptRequest) -> dict[str, Any]:
+        async with sidecar_client(timeout=30.0) as client:
+            response = await client.post(f"/v1/terminals/{terminal_id}/interrupt", json=request.model_dump())
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            result = response.json()
+            persist_terminal_events(result.get("events", []))
+            return result
+
+    @app.post("/v1/terminals/{terminal_id}/resize")
+    async def resize_terminal(terminal_id: str, request: TerminalResizeRequest) -> dict[str, Any]:
+        async with sidecar_client(timeout=30.0) as client:
+            response = await client.post(f"/v1/terminals/{terminal_id}/resize", json=request.model_dump())
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            result = response.json()
+            persist_terminal_events(result.get("events", []))
+            return result
+
+    @app.post("/v1/terminals/{terminal_id}/control")
+    async def set_terminal_control(terminal_id: str, request: TerminalControlRequest) -> dict[str, Any]:
+        async with sidecar_client(timeout=30.0) as client:
+            response = await client.post(f"/v1/terminals/{terminal_id}/control", json=request.model_dump(exclude_none=True))
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            result = response.json()
+            persist_terminal_events(result.get("events", []))
+            return result
+
+    @app.post("/v1/terminals/{terminal_id}/close")
+    async def close_terminal(terminal_id: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=30.0) as client:
+            response = await client.post(f"/v1/terminals/{terminal_id}/close")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            result = response.json()
+            persist_terminal_events(result.get("events", []))
+            return result
+
+    @app.get("/v1/terminals/{terminal_id}/stream")
+    async def stream_terminal(terminal_id: str):
+        async def event_generator():
+            async with sidecar_client(timeout=None) as client:
+                async with client.stream("GET", f"/v1/terminals/{terminal_id}/stream") as response:
+                    if response.status_code >= 400:
+                        await _raise_streaming_sidecar_error(response)
+                    buffer = ""
+                    async for chunk in response.aiter_text():
+                        buffer += chunk
+                        parts = buffer.split("\n\n")
+                        buffer = parts.pop() if parts else buffer
+                        for part in parts:
+                            if not part.startswith("data: "):
+                                continue
+                            payload = part[6:].strip()
+                            if not payload:
+                                continue
+                            event = json.loads(payload)
+                            persist_terminal_events([event])
+                            yield sse(event)
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     @app.post("/v1/rag/session/{session_id}/files/import")
     async def rag_import_session_file(session_id: str, request: RagImportRequest) -> dict[str, Any]:
