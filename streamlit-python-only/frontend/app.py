@@ -473,25 +473,18 @@ def render_floating_tool_access() -> None:
         ("Apps", "appActions"),
         ("Clarify", "clarification"),
     ]
-    selected_tools = [
-        label
-        for label, toggle_key in tool_options
-        if bool(st.session_state["tool_toggles"].get(toggle_key, False))
-    ]
     with st.container(key="floating_tools"):
-        chosen_tools = st.segmented_control(
-            "Tool access",
-            options=[label for label, _ in tool_options],
-            default=selected_tools,
-            selection_mode="multi",
-            key="tool_access_segments",
-            label_visibility="collapsed",
-        )
-    chosen_tool_labels = set(chosen_tools or [])
-    st.session_state["tool_toggles"] = {
-        toggle_key: label in chosen_tool_labels
-        for label, toggle_key in tool_options
-    }
+        cols = st.columns(len(tool_options), gap="small")
+        for idx, (label, toggle_key) in enumerate(tool_options):
+            active = bool(st.session_state["tool_toggles"].get(toggle_key, False))
+            if cols[idx].button(
+                label,
+                key=f"tool-dock-{toggle_key}",
+                use_container_width=True,
+                type="primary" if active else "secondary",
+            ):
+                st.session_state["tool_toggles"][toggle_key] = not active
+                st.rerun()
 
 
 def render_timeline_panel() -> None:
@@ -1028,33 +1021,6 @@ def inject_css() -> None:
             background: linear-gradient(180deg, rgba(126,203,255,0.22), rgba(126,203,255,0.12));
             border-color: rgba(126,203,255,0.28);
         }
-        [data-testid="stSegmentedControl"] {
-            background: rgba(8, 13, 21, 0.68);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 18px;
-            padding: 0.28rem;
-            min-height: 3rem;
-        }
-        [data-testid="stSegmentedControl"] [role="radiogroup"],
-        [data-testid="stSegmentedControl"] [role="group"] {
-            gap: 0.35rem;
-        }
-        [data-testid="stSegmentedControl"] button {
-            border-radius: 13px !important;
-            min-height: 2.3rem !important;
-            padding: 0.2rem 0.8rem !important;
-            border: 1px solid transparent !important;
-            background: rgba(120, 130, 145, 0.12) !important;
-            color: rgba(203, 210, 219, 0.88) !important;
-            font-size: 0.9rem !important;
-            font-weight: 600 !important;
-        }
-        [data-testid="stSegmentedControl"] button[aria-pressed="true"] {
-            background: linear-gradient(180deg, rgba(0, 170, 255, 0.72), rgba(0, 110, 255, 0.46)) !important;
-            border-color: rgba(65, 196, 255, 0.96) !important;
-            color: #f2f8ff !important;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 18px rgba(0, 149, 255, 0.28);
-        }
         [data-testid="stChatInput"] {
             position: fixed;
             left: 50%;
@@ -1080,13 +1046,30 @@ def inject_css() -> None:
             width: min(18rem, calc(100vw - (50% + min(24vw, 430px) + 2rem)));
             z-index: 998;
         }
-        .st-key-floating_tools [data-testid="stSegmentedControl"] {
+        .st-key-floating_tools > div {
             background: linear-gradient(180deg, rgba(7, 15, 24, 0.94), rgba(7, 15, 24, 0.82));
             border-radius: 20px;
             border: 1px solid rgba(255,255,255,0.08);
             box-shadow: 0 18px 50px rgba(0,0,0,0.26);
             backdrop-filter: blur(18px);
             padding: 0.45rem;
+        }
+        .st-key-floating_tools .stButton > button {
+            min-height: 2.35rem;
+            border-radius: 13px;
+            font-size: 0.88rem;
+            padding: 0.15rem 0.35rem;
+        }
+        .st-key-floating_tools .stButton > button[kind="primary"] {
+            background: linear-gradient(180deg, rgba(0, 170, 255, 0.82), rgba(0, 110, 255, 0.58)) !important;
+            border-color: rgba(65, 196, 255, 0.98) !important;
+            color: #f2f8ff !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 18px rgba(0, 149, 255, 0.28);
+        }
+        .st-key-floating_tools .stButton > button[kind="secondary"] {
+            background: rgba(120, 130, 145, 0.14) !important;
+            border-color: rgba(169, 179, 193, 0.18) !important;
+            color: rgba(214, 221, 230, 0.9) !important;
         }
         [data-testid="column"] {
             min-height: calc(100vh - 13rem);
