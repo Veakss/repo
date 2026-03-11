@@ -478,8 +478,7 @@ def render_floating_tool_access() -> None:
         for label, toggle_key in tool_options
         if bool(st.session_state["tool_toggles"].get(toggle_key, False))
     ]
-    with st.container():
-        st.markdown('<div id="cb-floating-tool-anchor"></div>', unsafe_allow_html=True)
+    with st.container(key="floating_tools"):
         chosen_tools = st.segmented_control(
             "Tool access",
             options=[label for label, _ in tool_options],
@@ -1051,10 +1050,10 @@ def inject_css() -> None:
             font-weight: 600 !important;
         }
         [data-testid="stSegmentedControl"] button[aria-pressed="true"] {
-            background: linear-gradient(180deg, rgba(0, 148, 255, 0.46), rgba(0, 120, 255, 0.28)) !important;
-            border-color: rgba(0, 162, 255, 0.72) !important;
+            background: linear-gradient(180deg, rgba(0, 170, 255, 0.72), rgba(0, 110, 255, 0.46)) !important;
+            border-color: rgba(65, 196, 255, 0.96) !important;
             color: #f2f8ff !important;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(0, 162, 255, 0.18);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 18px rgba(0, 149, 255, 0.28);
         }
         [data-testid="stChatInput"] {
             position: fixed;
@@ -1074,23 +1073,20 @@ def inject_css() -> None:
         [data-testid="stChatInput"] input {
             background: transparent !important;
         }
-        div[data-testid="stVerticalBlock"]:has(#cb-floating-tool-anchor) {
+        .st-key-floating_tools {
             position: fixed;
             left: calc(50% + min(24vw, 430px) + 1rem);
             bottom: 1rem;
             width: min(18rem, calc(100vw - (50% + min(24vw, 430px) + 2rem)));
             z-index: 998;
         }
-        div[data-testid="stVerticalBlock"]:has(#cb-floating-tool-anchor) [data-testid="stSegmentedControl"] {
+        .st-key-floating_tools [data-testid="stSegmentedControl"] {
             background: linear-gradient(180deg, rgba(7, 15, 24, 0.94), rgba(7, 15, 24, 0.82));
             border-radius: 20px;
             border: 1px solid rgba(255,255,255,0.08);
             box-shadow: 0 18px 50px rgba(0,0,0,0.26);
             backdrop-filter: blur(18px);
             padding: 0.45rem;
-        }
-        #cb-floating-tool-anchor {
-            display: none;
         }
         [data-testid="column"] {
             min-height: calc(100vh - 13rem);
@@ -1112,14 +1108,14 @@ def inject_css() -> None:
             [data-testid="stChatInput"] {
                 width: min(64vw, 900px);
             }
-            div[data-testid="stVerticalBlock"]:has(#cb-floating-tool-anchor) {
+            .st-key-floating_tools {
                 left: calc(50% + min(32vw, 450px) - 7rem);
                 bottom: 4.8rem;
                 width: 14rem;
             }
         }
         @media (max-width: 900px) {
-            div[data-testid="stVerticalBlock"]:has(#cb-floating-tool-anchor) {
+            .st-key-floating_tools {
                 left: 50%;
                 transform: translateX(-50%);
                 bottom: 4.9rem;
