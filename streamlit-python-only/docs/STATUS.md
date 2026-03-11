@@ -4,7 +4,7 @@
 
 - Branch target: `codex/streamlit-python-only`
 - Remote push: available on `origin`
-- Current phase: lot 2 complete, ready for lot 3
+- Current phase: lot 3 complete, ready for lot 4
 
 ## Done
 
@@ -40,16 +40,21 @@
 - lot 2 verification script added
 - live MongoDB 8.0 installed locally via Homebrew
 - live lot 2 backend verification against a real Mongo daemon passed
+- Streamlit UI now talks to the Python backend for sessions, messages, runs, approvals, clarifications, and workspace files
+- frontend helper modules added for backend access and timeline/UI state shaping
+- backend filesystem endpoints added for the Streamlit files panel
+- Streamlit test coverage added with `streamlit.testing.v1`
+- lot 3 verification scripts added, including a live Streamlit smoke against backend + sidecar + Mongo
 
 ## In Progress
 
-- Streamlit shell expansion
-- UI parity implementation
+- RAG parity planning
+- Matrix Python port planning
 
 ## Next Verification Point
 
-- Streamlit can drive a real backend session end to end
-- UI session and run panels reflect persisted backend state
+- RAG backend surfaces exist for Session Docs, Profiles, and Session Memory
+- Streamlit can consume real RAG states from the Python stack
 
 ## Update Log
 
@@ -85,3 +90,9 @@
 - installed `mongodb-community@8.0` with Homebrew and started it via `brew services`
 - verified `mongosh --eval 'db.adminCommand({ ping: 1 })'` returns `{ ok: 1 }`
 - verified `python scripts/verify_lot2_live_mongo.py` against a real local Mongo daemon
+- added Streamlit `frontend/api_client.py` and `frontend/ui_state.py` to separate backend calls from presentation logic
+- rebuilt the Streamlit shell to support session selection, rename/delete, persisted history, timeline rendering, approvals, clarifications, and file preview
+- added backend filesystem routes `GET /v1/fs/tree` and `GET /v1/fs/read`
+- verified `pytest` across the full Python subtree including Streamlit tests: `20 passed`
+- verified `python scripts/verify_lot3.py`
+- verified `python scripts/verify_lot3_live.py` with a real backend, sidecar, Mongo daemon, and OpenRouter-backed response

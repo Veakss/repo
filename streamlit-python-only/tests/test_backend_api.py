@@ -28,6 +28,10 @@ def build_test_client(tmp_path, handler) -> tuple[TestClient, MongoStore]:
         database_name="continue_better_python_backend_test",
         artifacts_root=tmp_path,
     )
+    workspace = tmp_path.joinpath("workspace")
+    workspace.mkdir(parents=True, exist_ok=True)
+    workspace.joinpath("notes.txt").write_text("hello workspace", encoding="utf-8")
+    store.settings.workspace_root = str(workspace)
     transport = httpx.MockTransport(handler)
     return TestClient(create_backend_app(store=store, sidecar_transport=transport, sidecar_base_url="http://sidecar.test")), store
 
@@ -80,6 +84,13 @@ def test_backend_session_crud_and_run_queries(tmp_path):
     assert run["meta"]["state"] == "completed"
     assert len(run["events"]) == 6
     assert store.get_run("run-1")["meta"]["event_count"] == 6
+
+    tree = client.get("/v1/fs/tree")
+    assert tree.status_code == 200
+    assert tree.json()["children"][0]["path"] == "notes.txt"
+    file_payload = client.get("/v1/fs/read", params={"path": "notes.txt"})
+    assert file_payload.status_code == 200
+    assert file_payload.json()["content"] == "hello workspace"
 
     deleted = client.delete(f"/v1/sessions/{session_id}")
     assert deleted.status_code == 200

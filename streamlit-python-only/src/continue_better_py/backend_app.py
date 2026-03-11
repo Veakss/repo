@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -53,6 +54,34 @@ def _render_clarification_message(event: dict[str, Any]) -> str:
         lines.append("Quick options:")
         lines.extend(f"- {label}" for label in options)
     return "\n".join(lines)
+
+
+def _resolve_in_workspace(workspace_root: Path, relative_path: str) -> Path:
+    base = workspace_root.resolve()
+    resolved = base.joinpath(relative_path).resolve()
+    if resolved != base and base not in resolved.parents:
+        raise HTTPException(status_code=400, detail="Path escapes workspace root")
+    return resolved
+
+
+def _build_tree(root: Path) -> dict[str, Any]:
+    def walk(directory: Path) -> list[dict[str, Any]]:
+        children: list[dict[str, Any]] = []
+        for child in sorted(directory.iterdir(), key=lambda item: (item.is_file(), item.name.lower())):
+            if child.name.startswith("."):
+                continue
+            node: dict[str, Any] = {
+                "name": child.name,
+                "path": str(child.relative_to(root)),
+                "type": "file" if child.is_file() else "directory",
+            }
+            if child.is_dir():
+                node["children"] = walk(child)
+            children.append(node)
+        return children
+
+    root.mkdir(parents=True, exist_ok=True)
+    return {"root": str(root), "children": walk(root)}
 
 
 def create_backend_app(
@@ -182,6 +211,19 @@ def create_backend_app(
     @app.get("/v1/runs/{run_id}/events")
     def get_run_events(run_id: str) -> dict[str, Any]:
         return {"run": get_run_or_404(run_id)}
+
+    @app.get("/fs/tree")
+    @app.get("/v1/fs/tree")
+    def fs_tree() -> dict[str, Any]:
+        return _build_tree(settings.resolved_workspace_root)
+
+    @app.get("/fs/read")
+    @app.get("/v1/fs/read")
+    def fs_read(path: str = Query(..., description="Path relative to workspace root")) -> dict[str, Any]:
+        target = _resolve_in_workspace(settings.resolved_workspace_root, path)
+        if not target.exists() or not target.is_file():
+            raise HTTPException(status_code=404, detail="File not found")
+        return {"path": str(target.relative_to(settings.resolved_workspace_root)), "content": target.read_text(encoding="utf-8")}
 
     @app.post("/chat/stream")
     @app.post("/v1/chat/stream")

@@ -19,16 +19,20 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
 
 ## Immediate Next Steps
 
-1. Start lot 3:
-   - wire Streamlit to backend session CRUD and chat streaming
-   - add a run timeline panel backed by `/v1/runs` and `/v1/runs/{run_id}/events`
-   - expose approval and clarification actions from the UI
-2. Preserve backend contract while growing the UI:
-   - keep session list, messages, and run details sourced from Mongo-backed endpoints
-   - reuse the new run metadata counters in the timeline and status pills
-3. Add file, RAG, and Matrix panels progressively on top of the current Streamlit shell
-4. When a Mongo daemon is available locally, run a live backend smoke using the real backend plus sidecar stack
-5. Port Matrix runner and dashboard after the Streamlit app can drive normal runs end to end
+1. Start lot 4:
+   - add canonical Mongo repositories for `rag_profiles`, `rag_files`, `rag_chunks`, and `rag_memory_entries`
+   - expose backend and sidecar RAG endpoints for Session Docs, Profiles, and Session Memory
+   - implement indexing jobs and retrieval formatting
+2. Keep phase 3 UI stable while phase 4 lands:
+   - preserve the existing Streamlit session/chat/timeline/files contract
+   - only replace the placeholder RAG tab once the backend routes are ready
+3. After lot 4, move to Matrix:
+   - Python scenario catalog
+   - report persistence
+   - Streamlit `/matrix` equivalent
+4. Keep using the live verification scripts when changing contracts:
+   - `verify_lot2_live_mongo.py`
+   - `verify_lot3_live.py`
 
 ## Practical Constraints
 
@@ -79,3 +83,14 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
 - `tests/test_backend_api.py` covers backend session CRUD, streaming persistence, approvals, and clarifications
 - `scripts/verify_lot2.py` runs the full lot 2 verification set and compile checks
 - `scripts/verify_lot2_live_mongo.py` verifies the backend against a real local Mongo daemon while keeping the sidecar in-process
+- `frontend/app.py` is now the active Streamlit control-plane shell, with helper modules in `frontend/api_client.py` and `frontend/ui_state.py`
+- Streamlit currently supports:
+  - session list and session CRUD
+  - persisted chat history
+  - run timeline
+  - approval actions
+  - clarification answers
+  - workspace file tree and file preview
+- `tests/test_streamlit_app.py` covers the core phase 3 layout through `streamlit.testing.v1`
+- `scripts/verify_lot3.py` runs the full project test suite plus compile checks
+- `scripts/verify_lot3_live.py` starts real sidecar and backend processes, uses the local Mongo daemon, drives the Streamlit app through `AppTest`, and verifies persisted assistant output
