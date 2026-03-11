@@ -4,7 +4,7 @@
 
 - Branch target: `codex/streamlit-python-only`
 - Remote push: available on `origin`
-- Current phase: lot 5 complete, ready for lot 6
+- Current phase: lot 6 complete
 
 ## Done
 
@@ -57,16 +57,20 @@
 - backend now exposes Matrix catalog, jobs, reports, and compare endpoints
 - Streamlit Matrix tab now supports run launch, job polling, report browsing, filtering, and compare
 - lot 5 verification scripts added, including a live Matrix smoke against backend + sidecar + Mongo
+- terminal tool added with policy blocking, execution diagnostics, and terminal timeline events
+- app actions, web search, and explicit session memory upsert tools added to the Python registry
+- Streamlit terminal tab now renders real terminal activity from run events
+- provider probe and lot 6 verification scripts added for operational hardening
+- run scripts now prefer the local `.venv` interpreter and load `.env`
 
 ## In Progress
 
-- terminal parity planning
-- parity closure and hardening planning
+- post-parity cleanup and future refinements
 
 ## Next Verification Point
 
-- terminal runtime and UI parity become usable for daily workflows
-- matrix surface gaps and remaining parity failures are turned into an explicit closure checklist
+- optional future enhancements stay regression-free
+- Thales-specific live validation can be rerun when credentials are available on this machine
 
 ## Update Log
 
@@ -121,3 +125,11 @@
 - verified `pytest` across the full Python subtree including Matrix coverage: `26 passed`
 - verified `python scripts/verify_lot5.py`
 - verified `python scripts/verify_lot5_live.py` with real backend, sidecar, Mongo, job execution, report persistence, and compare
+- expanded the tool registry with terminal, app actions, web search, and explicit session memory upsert support
+- runtime now emits provider diagnostics plus terminal lifecycle events and blocked-command diagnostics
+- Streamlit terminal tab now renders real terminal output instead of a placeholder
+- added `scripts/probe_provider.py`, `scripts/verify_lot6.py`, and `scripts/verify_lot6_live.py`
+- updated the run scripts to use `.venv/bin/python` and auto-load `.env`
+- verified `pytest` across the full Python subtree after lot 6 changes: `28 passed`
+- verified `python scripts/verify_lot6.py`
+- verified `python scripts/verify_lot6_live.py` with real provider probe, backend, sidecar, Mongo, and terminal execution

@@ -11,14 +11,14 @@ Parallel rewrite of Continue Better with a Python-only product stack:
 
 This subtree is the new source of truth for the Python migration. The legacy TypeScript implementation remains in the repo as the reference baseline until parity is reached.
 
-Current focus:
+Current status:
 
-1. Lot 1: provider/runtime foundation for OpenRouter and Thales
-2. Lot 2: backend persistence and API parity
-3. Lot 3: Streamlit UI parity
-4. Lot 4: RAG parity
-5. Lot 5: Matrix Lab Python port
-6. Lot 6: hardening and parity closure
+1. Lot 1 complete: provider/runtime foundation
+2. Lot 2 complete: backend persistence and API parity
+3. Lot 3 complete: Streamlit UI parity
+4. Lot 4 complete: RAG parity
+5. Lot 5 complete: Matrix Lab Python port
+6. Lot 6 complete: terminal/runtime hardening, provider probes, and operational scripts
 
 See:
 

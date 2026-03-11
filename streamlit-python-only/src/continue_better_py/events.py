@@ -23,6 +23,17 @@ def run_phase(run_id: str, phase: str, detail: str | None = None) -> dict:
     return event
 
 
+def run_diagnostic(run_id: str, code: str, message: str, level: str = "info") -> dict:
+    return {
+        "type": "run_diagnostic",
+        "runId": run_id,
+        "code": code,
+        "level": level,
+        "message": message,
+        "timestamp": now_iso(),
+    }
+
+
 def token(value: str) -> dict:
     return {"type": "token", "token": value}
 
@@ -71,7 +82,39 @@ def clarification_required(
 
 
 def error_event(message: str) -> dict:
-    return {"type": "error", "error": message}
+    return {"type": "error", "error": message, "timestamp": now_iso()}
+
+
+def terminal_opened(run_id: str, terminal_id: str, command: str, cwd: str) -> dict:
+    return {
+        "type": "terminal_opened",
+        "runId": run_id,
+        "terminalId": terminal_id,
+        "command": command,
+        "cwd": cwd,
+        "timestamp": now_iso(),
+    }
+
+
+def terminal_exit(run_id: str, terminal_id: str, exit_code: int, output: str) -> dict:
+    return {
+        "type": "terminal_exit",
+        "runId": run_id,
+        "terminalId": terminal_id,
+        "exitCode": exit_code,
+        "output": output,
+        "timestamp": now_iso(),
+    }
+
+
+def terminal_error(run_id: str, terminal_id: str, message: str) -> dict:
+    return {
+        "type": "terminal_error",
+        "runId": run_id,
+        "terminalId": terminal_id,
+        "message": message,
+        "timestamp": now_iso(),
+    }
 
 
 def done() -> dict:

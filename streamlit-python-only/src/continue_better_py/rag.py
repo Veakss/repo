@@ -627,6 +627,44 @@ class RagService:
             return self.compact_memory(safe_session, reason="auto")
         return self.get_memory_state(safe_session)
 
+    def append_memory_note(self, session_id: str, content: str, kind: str = "note") -> dict[str, Any]:
+        self._require_connection()
+        safe_session = assert_safe_segment("sessionId", session_id)
+        config = self._memory_config(safe_session)
+        if not config["enabled"]:
+            return self.get_memory_state(safe_session)
+        text = str(content or "").strip()
+        if not text:
+            return self.get_memory_state(safe_session)
+        entry = {
+            "id": str(uuid.uuid4()),
+            "ts": now_iso(),
+            "kind": str(kind or "note").strip() or "note",
+            "content": text[:1200] + ("…" if len(text) > 1200 else ""),
+            "confidence": 0.8,
+            "source": "session_memory_upsert",
+        }
+        self.db.rag_memory_entries.insert_one({"session_id": safe_session, "record_type": "entry", **entry})
+        entries_state = self.get_memory_state(safe_session, limit=300)
+        summary_text = "\n".join(f"- [{row.get('kind', 'note')}] {row.get('content', '')}" for row in reversed(entries_state["entries"][:20]))
+        total_tokens = estimate_tokens(summary_text + "\n" + "\n".join(row["content"] for row in entries_state["entries"]))
+        self.db.rag_memory_entries.find_one_and_update(
+            {"session_id": safe_session, "record_type": "summary"},
+            {
+                "$set": {
+                    "text": summary_text,
+                    "updatedAt": now_iso(),
+                    "estimatedTokens": total_tokens,
+                    "entryCount": len(entries_state["entries"]),
+                },
+                "$setOnInsert": {"session_id": safe_session, "record_type": "summary"},
+            },
+            upsert=True,
+        )
+        if total_tokens >= int(config["tokenBudget"] * config["thresholdPct"]):
+            return self.compact_memory(safe_session, reason="auto")
+        return self.get_memory_state(safe_session)
+
     def lookup(self, question: str, session_id: str | None = None, scope: dict[str, Any] | None = None) -> dict[str, Any]:
         self._require_connection()
         query = str(question or "").strip()

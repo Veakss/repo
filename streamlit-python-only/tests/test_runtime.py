@@ -115,3 +115,35 @@ async def test_clarification_resume_completes_run(tmp_path: Path):
     resume_events = [event async for event in runtime.stream_clarification_decision(ClarificationDecisionRequest(clarification_id=clarification_event["clarificationId"], answer="Use app.py"))]
     assert any(event["type"] == "token" for event in resume_events)
     assert any(event["type"] == "run_state" and event["state"] == "completed" for event in resume_events)
+
+
+@pytest.mark.anyio
+async def test_runtime_terminal_tool_emits_terminal_events(tmp_path: Path):
+    model = FakeModel(
+        [
+            AIMessage(content="", tool_calls=[{"id": "call-1", "name": "run_terminal", "args": {"command": "pwd"}}]),
+            AIMessage(content="terminal complete"),
+        ]
+    )
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(sessionId="s1", messages=[ChatMessage(role="user", content="run pwd")], workspaceRoot=str(tmp_path))
+    events = [event async for event in runtime.stream_chat(request, [AIMessage(content="ignored")])]
+    assert any(event["type"] == "terminal_opened" for event in events)
+    assert any(event["type"] == "terminal_exit" and event["exitCode"] == 0 for event in events)
+    assert any(event["type"] == "run_diagnostic" and event["code"] == "provider_mode" for event in events)
+    assert any(event["type"] == "run_state" and event["state"] == "completed" for event in events)
+
+
+@pytest.mark.anyio
+async def test_runtime_terminal_policy_block_emits_diagnostic(tmp_path: Path):
+    model = FakeModel(
+        [
+            AIMessage(content="", tool_calls=[{"id": "call-1", "name": "run_terminal", "args": {"command": "ls && pwd"}}]),
+            AIMessage(content="blocked"),
+        ]
+    )
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(sessionId="s1", messages=[ChatMessage(role="user", content="run unsafe command")], workspaceRoot=str(tmp_path))
+    events = [event async for event in runtime.stream_chat(request, [AIMessage(content="ignored")])]
+    assert any(event["type"] == "run_diagnostic" and event["code"] == "terminal_command_blocked" for event in events)
+    assert any(event["type"] == "terminal_error" for event in events)

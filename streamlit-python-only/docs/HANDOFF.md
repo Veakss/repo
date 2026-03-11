@@ -19,20 +19,19 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
 
 ## Immediate Next Steps
 
-1. Start lot 6:
-   - terminal hardening
-   - replay diagnostics
-   - packaging and polish
-   - provider-specific closure checks for OpenRouter and Thales
-2. Keep lot 5 stable while lot 6 lands:
-   - preserve the Matrix catalog and report schema
-   - keep the Streamlit Matrix tab wired to the real backend endpoints
-   - avoid breaking Mongo + JSON report persistence
+1. Maintain parity:
+   - keep terminal, Matrix, RAG, and provider probes green
+   - preserve the current event contract used by the Streamlit shell
+2. Future work is now incremental rather than milestone-blocking:
+   - richer terminal interactivity if needed
+   - deeper Thales live validation when credentials are available
+   - UI refinements and performance polish
 3. Keep using the live verification scripts when changing contracts:
    - `verify_lot2_live_mongo.py`
    - `verify_lot3_live.py`
    - `verify_lot4_live.py`
    - `verify_lot5_live.py`
+   - `verify_lot6_live.py`
 
 ## Practical Constraints
 
@@ -102,6 +101,11 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
   - Mongo + JSON report persistence
   - Streamlit report browsing and compare view
   - live verification against the real Python stack
+- Terminal currently supports:
+  - single-command execution through the tool registry
+  - blocked-command diagnostics
+  - terminal lifecycle events in the run timeline
+  - Streamlit rendering of terminal output
 - `tests/test_streamlit_app.py` covers the core phase 3 layout through `streamlit.testing.v1`
 - `scripts/verify_lot3.py` runs the full project test suite plus compile checks
 - `scripts/verify_lot3_live.py` starts real sidecar and backend processes, uses the local Mongo daemon, drives the Streamlit app through `AppTest`, and verifies persisted assistant output
@@ -111,3 +115,6 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
 - `src/continue_better_py/matrix.py` is the new shared Matrix implementation used by the backend
 - `scripts/verify_lot5.py` runs deterministic Matrix verification
 - `scripts/verify_lot5_live.py` verifies real Matrix job execution, report persistence, and compare on backend + sidecar + Mongo
+- `scripts/probe_provider.py` probes the configured provider profile directly
+- `scripts/verify_lot6.py` runs the hardened regression and provider metadata checks
+- `scripts/verify_lot6_live.py` verifies the real provider, terminal tool path, backend, sidecar, and Mongo together

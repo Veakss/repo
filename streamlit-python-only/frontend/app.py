@@ -14,10 +14,10 @@ if str(CURRENT_DIR) not in sys.path:
 
 try:
     from frontend.api_client import BackendClient
-    from frontend.ui_state import build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
+    from frontend.ui_state import build_terminal_html, build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
 except ModuleNotFoundError:
     from api_client import BackendClient
-    from ui_state import build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
+    from ui_state import build_terminal_html, build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
 
 
 ClientFactory = Callable[[], BackendClient]
@@ -537,6 +537,10 @@ def render_rag_panel(client: BackendClient) -> None:
                 st.write(hit.get("snippet", ""))
 
 
+def render_terminal_panel() -> None:
+    st.markdown(build_terminal_html(st.session_state["timeline"]), unsafe_allow_html=True)
+
+
 def _format_ratio(value: float | None) -> str:
     if value is None:
         return "n/a"
@@ -693,7 +697,7 @@ def render_status_panels(client: BackendClient) -> None:
     with tabs[4]:
         render_rag_panel(client)
     with tabs[5]:
-        st.info("Interactive terminal UI waits on the Python terminal runtime surfaces.")
+        render_terminal_panel()
     with tabs[6]:
         render_matrix_panel(client)
 
@@ -745,6 +749,11 @@ def inject_css() -> None:
             word-break: break-word;
             color: rgba(220, 232, 245, 0.85);
             font-size: 0.75rem;
+        }
+        .cb-terminal-meta {
+            font-size: 0.74rem;
+            color: rgba(220, 232, 245, 0.7);
+            margin-bottom: 8px;
         }
         .cb-tone-error {
             border-color: rgba(248, 113, 113, 0.4);

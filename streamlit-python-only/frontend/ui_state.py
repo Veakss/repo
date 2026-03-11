@@ -112,3 +112,52 @@ def build_timeline_html(timeline: list[dict[str, Any]]) -> str:
     if not blocks:
         blocks.append('<div class="cb-empty-card">No run events yet.</div>')
     return f'<div class="cb-timeline-wrap">{"".join(blocks)}</div>'
+
+
+def build_terminal_html(timeline: list[dict[str, Any]]) -> str:
+    by_terminal: dict[str, dict[str, Any]] = {}
+    for event in timeline:
+        terminal_id = str(event.get("terminalId") or "")
+        if not terminal_id:
+            continue
+        entry = by_terminal.setdefault(terminal_id, {"terminalId": terminal_id})
+        if event.get("type") == "terminal_opened":
+            entry["command"] = event.get("command")
+            entry["cwd"] = event.get("cwd")
+            entry["openedAt"] = event.get("timestamp")
+        elif event.get("type") == "terminal_exit":
+            entry["exitCode"] = event.get("exitCode")
+            entry["output"] = event.get("output")
+            entry["closedAt"] = event.get("timestamp")
+        elif event.get("type") == "terminal_error":
+            entry["error"] = event.get("message")
+            entry["closedAt"] = event.get("timestamp")
+    blocks: list[str] = []
+    for terminal in reversed(list(by_terminal.values())[-20:]):
+        command = html.escape(str(terminal.get("command") or "terminal"))
+        cwd = html.escape(str(terminal.get("cwd") or ""))
+        opened = html.escape(str(terminal.get("openedAt") or ""))
+        output = html.escape(str(terminal.get("output") or terminal.get("error") or "(no output)"))
+        meta = []
+        if cwd:
+            meta.append(cwd)
+        if terminal.get("exitCode") is not None:
+            meta.append(f"exit={terminal['exitCode']}")
+        elif terminal.get("error"):
+            meta.append("error")
+        meta_text = " | ".join(meta)
+        blocks.append(
+            f"""
+            <div class="cb-timeline-card">
+              <div class="cb-timeline-head">
+                <span>{command}</span>
+                <span>{opened}</span>
+              </div>
+              <div class="cb-terminal-meta">{html.escape(meta_text)}</div>
+              <pre>{output}</pre>
+            </div>
+            """
+        )
+    if not blocks:
+        blocks.append('<div class="cb-empty-card">No terminal activity yet.</div>')
+    return f'<div class="cb-timeline-wrap">{"".join(blocks)}</div>'

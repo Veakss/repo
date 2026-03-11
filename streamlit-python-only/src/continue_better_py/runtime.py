@@ -18,7 +18,11 @@ from continue_better_py.events import (
     done,
     error_event,
     run_phase,
+    run_diagnostic,
     run_state,
+    terminal_error,
+    terminal_exit,
+    terminal_opened,
     token,
 )
 from continue_better_py.providers import ResolvedProvider, build_chat_model, resolve_provider
@@ -87,6 +91,16 @@ def build_tool_replay_message(name: str, args: dict[str, Any], result: str, stat
     )
 
 
+def decode_terminal_payload(raw: str) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(str(raw or ""))
+    except Exception:
+        return None
+    if not isinstance(payload, dict) or "terminalId" not in payload:
+        return None
+    return payload
+
+
 class RuntimeEngine:
     def __init__(self, dependencies: RuntimeDependencies | None = None) -> None:
         self.deps = dependencies or RuntimeDependencies(
@@ -100,6 +114,121 @@ class RuntimeEngine:
     def capabilities_payload(self, workspace_root: str, session_id: str | None = None) -> list[dict]:
         return self.deps.tool_registry_factory(workspace_root, session_id).module_payloads()
 
+    def _materialize_tool_result(
+        self,
+        run_id: str,
+        tool_name: str,
+        tool_id: str,
+        raw_result: str,
+    ) -> tuple[list[dict[str, Any]], str, bool]:
+        if tool_name != "run_terminal":
+            return (
+                [
+                    {
+                        "type": "tool_result",
+                        "runId": run_id,
+                        "actionId": tool_id,
+                        "name": tool_name,
+                        "ok": True,
+                        "preview": raw_result[:400],
+                    }
+                ],
+                raw_result,
+                True,
+            )
+        payload = decode_terminal_payload(raw_result)
+        if not payload:
+            return (
+                [
+                    {
+                        "type": "tool_result",
+                        "runId": run_id,
+                        "actionId": tool_id,
+                        "name": tool_name,
+                        "ok": False,
+                        "preview": raw_result[:400],
+                    },
+                    run_diagnostic(run_id, "terminal_payload_invalid", "Terminal tool returned an invalid payload.", level="warn"),
+                ],
+                raw_result,
+                False,
+            )
+        terminal_id = str(payload.get("terminalId") or uuid.uuid4())
+        command = str(payload.get("command") or "")
+        cwd = str(payload.get("cwd") or "")
+        stdout = str(payload.get("stdout") or "")
+        stderr = str(payload.get("stderr") or "")
+        blocked = bool(payload.get("blocked"))
+        exit_code = int(payload.get("exitCode") or 0)
+        output = "\n".join(part for part in [stdout.strip(), stderr.strip()] if part).strip()
+        events = [terminal_opened(run_id, terminal_id, command, cwd)]
+        if blocked:
+            events.append(run_diagnostic(run_id, "terminal_command_blocked", stderr or "Terminal command blocked by policy.", level="warn"))
+            events.append(terminal_error(run_id, terminal_id, stderr or "Terminal command blocked by policy."))
+        else:
+            events.append(terminal_exit(run_id, terminal_id, exit_code, output[:8000]))
+            if exit_code != 0:
+                events.append(run_diagnostic(run_id, "terminal_nonzero_exit", f"Terminal command exited with code {exit_code}.", level="warn"))
+        formatted = "\n".join(
+            line
+            for line in [
+                f"Command: {command}",
+                f"CWD: {cwd}",
+                f"Exit code: {exit_code}",
+                "Output:",
+                output or "(no output)",
+            ]
+            if line
+        )
+        events.append(
+            {
+                "type": "tool_result",
+                "runId": run_id,
+                "actionId": tool_id,
+                "name": tool_name,
+                "ok": not blocked and exit_code == 0,
+                "preview": formatted[:400],
+            }
+        )
+        return events, formatted, (not blocked and exit_code == 0)
+
+    async def _stream_result(self, run_id: str, result: AgentState):
+        for event in result.get("tool_events", []):
+            yield event
+        if result.get("pending_approval"):
+            approval = result["pending_approval"]
+            self.deps.state_store.save("approvals", approval["approvalId"], {**self._serialize_snapshot(result)})
+            yield run_state(run_id, "awaiting_approval")
+            yield approval_required(
+                run_id=run_id,
+                approval_id=approval["approvalId"],
+                name=approval["name"],
+                arguments=json.dumps(approval["arguments"], ensure_ascii=False),
+                risk_level=approval["riskLevel"],
+            )
+            yield done()
+            return
+        if result.get("pending_clarification"):
+            clarification = result["pending_clarification"]
+            self.deps.state_store.save("clarifications", clarification["clarificationId"], {**self._serialize_snapshot(result)})
+            yield run_state(run_id, "awaiting_clarification")
+            yield clarification_required(
+                run_id=run_id,
+                clarification_id=clarification["clarificationId"],
+                question=clarification["question"],
+                options=clarification["options"],
+            )
+            yield done()
+            return
+        final_text = str(result.get("final_text", "") or "").strip() or "(empty response)"
+        yield run_phase(run_id, "finish")
+        for piece in split_for_streaming(final_text):
+            yield token(piece)
+            await asyncio.sleep(0)
+        yield run_state(run_id, "completed")
+        yield done()
+        return
+
     def _create_graph(self):
         def agent(state: AgentState) -> AgentState:
             registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"])
@@ -111,9 +240,6 @@ class RuntimeEngine:
                 "messages": [response],
                 "provider_mode": provider.mode,
                 "final_text": final_text,
-                "pending_approval": None,
-                "pending_clarification": None,
-                "tool_events": [],
             }
 
         def tools(state: AgentState) -> AgentState:
@@ -171,26 +297,18 @@ class RuntimeEngine:
                     }
                     break
                 result = str(registered.tool.invoke(tool_args))
-                tool_events.append(
-                    {
-                        "type": "tool_result",
-                        "runId": state["run_id"],
-                        "actionId": tool_id,
-                        "name": tool_name,
-                        "ok": True,
-                        "preview": result[:400],
-                    }
-                )
+                result_events, message_result, _ok = self._materialize_tool_result(state["run_id"], tool_name, tool_id, result)
+                tool_events.extend(result_events)
                 if state["provider_mode"] == "textual_replay":
-                    emitted_messages.append(build_tool_replay_message(tool_name, tool_args, result, "succeeded"))
+                    emitted_messages.append(build_tool_replay_message(tool_name, tool_args, message_result, "succeeded"))
                 else:
-                    emitted_messages.append(ToolMessage(content=result, tool_call_id=tool_id))
+                    emitted_messages.append(ToolMessage(content=message_result, tool_call_id=tool_id))
 
             return {
                 "messages": emitted_messages,
                 "pending_approval": pending_approval,
                 "pending_clarification": pending_clarification,
-                "tool_events": tool_events,
+                "tool_events": list(state.get("tool_events", [])) + tool_events,
             }
 
         def route_after_agent(state: AgentState) -> str:
@@ -268,6 +386,8 @@ class RuntimeEngine:
         yield run_state(run_id, "running")
         yield run_phase(run_id, "planning")
         yield run_phase(run_id, "execute")
+        yield run_diagnostic(run_id, "provider_mode", f"Provider mode: {state['provider_mode']}.")
+        yield run_diagnostic(run_id, "tool_routing_mode", "Tool selection is performed in the main model turn (single-pass).")
         try:
             result = self.graph.invoke(state)
         except Exception as exc:
@@ -275,40 +395,8 @@ class RuntimeEngine:
             yield run_state(run_id, "failed")
             yield done()
             return
-        for event in result.get("tool_events", []):
+        async for event in self._stream_result(run_id, result):
             yield event
-        if result.get("pending_approval"):
-            approval = result["pending_approval"]
-            self.deps.state_store.save("approvals", approval["approvalId"], {**self._serialize_snapshot(result)})
-            yield run_state(run_id, "awaiting_approval")
-            yield approval_required(
-                run_id=run_id,
-                approval_id=approval["approvalId"],
-                name=approval["name"],
-                arguments=json.dumps(approval["arguments"], ensure_ascii=False),
-                risk_level=approval["riskLevel"],
-            )
-            yield done()
-            return
-        if result.get("pending_clarification"):
-            clarification = result["pending_clarification"]
-            self.deps.state_store.save("clarifications", clarification["clarificationId"], {**self._serialize_snapshot(result)})
-            yield run_state(run_id, "awaiting_clarification")
-            yield clarification_required(
-                run_id=run_id,
-                clarification_id=clarification["clarificationId"],
-                question=clarification["question"],
-                options=clarification["options"],
-            )
-            yield done()
-            return
-        final_text = str(result.get("final_text", "") or "").strip() or "(empty response)"
-        yield run_phase(run_id, "finish")
-        for piece in split_for_streaming(final_text):
-            yield token(piece)
-            await asyncio.sleep(0)
-        yield run_state(run_id, "completed")
-        yield done()
 
     async def stream_approval_decision(self, request: ApprovalDecisionRequest):
         snapshot = self.deps.state_store.pop("approvals", request.approval_id)
@@ -319,7 +407,7 @@ class RuntimeEngine:
         run_id = state["run_id"]
         yield approval_decision(run_id, request.approval_id, request.decision)
         if request.decision == "approved":
-            registry = self.deps.tool_registry_factory(state["workspace_root"])
+            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"])
             registered = registry.get(pending["name"])
             if not registered:
                 yield error_event("Approved tool is no longer available")
@@ -327,18 +415,13 @@ class RuntimeEngine:
                 yield done()
                 return
             result = str(registered.tool.invoke(pending["arguments"]))
-            yield {
-                "type": "tool_result",
-                "runId": run_id,
-                "actionId": pending["toolCallId"],
-                "name": pending["name"],
-                "ok": True,
-                "preview": result[:400],
-            }
+            result_events, message_result, _ok = self._materialize_tool_result(run_id, pending["name"], pending["toolCallId"], result)
+            for event in result_events:
+                yield event
             if state["provider_mode"] == "textual_replay":
-                state["messages"] = state["messages"] + [build_tool_replay_message(pending["name"], pending["arguments"], result, "succeeded")]
+                state["messages"] = state["messages"] + [build_tool_replay_message(pending["name"], pending["arguments"], message_result, "succeeded")]
             else:
-                state["messages"] = state["messages"] + [ToolMessage(content=result, tool_call_id=pending["toolCallId"])]
+                state["messages"] = state["messages"] + [ToolMessage(content=message_result, tool_call_id=pending["toolCallId"])]
         else:
             rejection = (
                 build_tool_replay_message(pending["name"], pending["arguments"], "Rejected by user approval policy.", "rejected")
@@ -358,40 +441,8 @@ class RuntimeEngine:
             yield run_state(run_id, "failed")
             yield done()
             return
-        for event in result.get("tool_events", []):
+        async for event in self._stream_result(run_id, result):
             yield event
-        if result.get("pending_approval"):
-            approval = result["pending_approval"]
-            self.deps.state_store.save("approvals", approval["approvalId"], {**self._serialize_snapshot(result)})
-            yield run_state(run_id, "awaiting_approval")
-            yield approval_required(
-                run_id=run_id,
-                approval_id=approval["approvalId"],
-                name=approval["name"],
-                arguments=json.dumps(approval["arguments"], ensure_ascii=False),
-                risk_level=approval["riskLevel"],
-            )
-            yield done()
-            return
-        if result.get("pending_clarification"):
-            clarification = result["pending_clarification"]
-            self.deps.state_store.save("clarifications", clarification["clarificationId"], {**self._serialize_snapshot(result)})
-            yield run_state(run_id, "awaiting_clarification")
-            yield clarification_required(
-                run_id=run_id,
-                clarification_id=clarification["clarificationId"],
-                question=clarification["question"],
-                options=clarification["options"],
-            )
-            yield done()
-            return
-        final_text = str(result.get("final_text", "") or "").strip() or "(empty response)"
-        yield run_phase(run_id, "finish")
-        for piece in split_for_streaming(final_text):
-            yield token(piece)
-            await asyncio.sleep(0)
-        yield run_state(run_id, "completed")
-        yield done()
 
     async def stream_clarification_decision(self, request: ClarificationDecisionRequest):
         snapshot = self.deps.state_store.pop("clarifications", request.clarification_id)
@@ -412,37 +463,5 @@ class RuntimeEngine:
             yield run_state(run_id, "failed")
             yield done()
             return
-        for event in result.get("tool_events", []):
+        async for event in self._stream_result(run_id, result):
             yield event
-        if result.get("pending_approval"):
-            approval = result["pending_approval"]
-            self.deps.state_store.save("approvals", approval["approvalId"], {**self._serialize_snapshot(result)})
-            yield run_state(run_id, "awaiting_approval")
-            yield approval_required(
-                run_id=run_id,
-                approval_id=approval["approvalId"],
-                name=approval["name"],
-                arguments=json.dumps(approval["arguments"], ensure_ascii=False),
-                risk_level=approval["riskLevel"],
-            )
-            yield done()
-            return
-        if result.get("pending_clarification"):
-            clarification = result["pending_clarification"]
-            self.deps.state_store.save("clarifications", clarification["clarificationId"], {**self._serialize_snapshot(result)})
-            yield run_state(run_id, "awaiting_clarification")
-            yield clarification_required(
-                run_id=run_id,
-                clarification_id=clarification["clarificationId"],
-                question=clarification["question"],
-                options=clarification["options"],
-            )
-            yield done()
-            return
-        final_text = str(result.get("final_text", "") or "").strip() or "(empty response)"
-        yield run_phase(run_id, "finish")
-        for piece in split_for_streaming(final_text):
-            yield token(piece)
-            await asyncio.sleep(0)
-        yield run_state(run_id, "completed")
-        yield done()

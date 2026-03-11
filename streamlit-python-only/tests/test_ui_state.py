@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from frontend.ui_state import build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
+from frontend.ui_state import build_terminal_html, build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
 
 
 def test_merge_timeline_deduplicates_events():
@@ -47,3 +47,12 @@ def test_flatten_tree_and_timeline_html():
 
     html = build_timeline_html([{"type": "run_state", "runId": "r1", "state": "completed", "timestamp": "2026-03-11T12:00:00+00:00"}])
     assert "State -&gt; completed" in html
+
+    terminal_html = build_terminal_html(
+        [
+            {"type": "terminal_opened", "runId": "r1", "terminalId": "t1", "command": "pwd", "cwd": "/tmp", "timestamp": "2026-03-11T12:00:00+00:00"},
+            {"type": "terminal_exit", "runId": "r1", "terminalId": "t1", "exitCode": 0, "output": "/tmp", "timestamp": "2026-03-11T12:00:01+00:00"},
+        ]
+    )
+    assert "pwd" in terminal_html
+    assert "exit=0" in terminal_html
