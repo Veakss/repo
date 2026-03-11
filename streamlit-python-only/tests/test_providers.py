@@ -1,4 +1,5 @@
 from continue_better_py.providers import infer_mode, is_thales_url, simplify_schema_for_thales
+from continue_better_py.runtime import parse_text_tool_calls
 from continue_better_py.settings import ProviderProfile
 from continue_better_py.tooling import build_tool_lookup
 
@@ -40,3 +41,9 @@ def test_write_file_is_marked_risky():
     tools = build_tool_lookup("/tmp")
     assert tools["write_file"].risk_level == "risky"
     assert tools["request_clarification"].module_id == "clarification"
+
+
+def test_parse_text_tool_calls_supports_json_lines():
+    calls = parse_text_tool_calls('{"name":"read_file","arguments":{"path":"README.md"}}')
+    assert len(calls) == 1
+    assert calls[0]["name"] == "read_file"

@@ -23,11 +23,15 @@
 - approval and clarification HTTP flows scaffolded
 - risky tool classification introduced for `write_file`
 - backend proxy endpoints added for approvals and clarifications
+- runtime engine extracted from the sidecar app
+- file-backed pending approval/clarification snapshots added
+- tool registry abstraction added
+- sidecar API tests added
+- lot 1 verification script added
 
 ## In Progress
 
-- persistence of pending control-flow states
-- runtime chat path beyond the auth boundary
+- backend persistence parity
 - Streamlit shell expansion
 
 ## Next Verification Point
@@ -53,3 +57,6 @@
 - added `approval_required`, `approval_decision`, and `clarification_required` event scaffolding
 - verified sidecar resume endpoints return clean `404` responses for unknown approval/clarification ids
 - verified backend capabilities now expose the clarification module
+- extracted the sidecar runtime to `runtime.py`, with dedicated `tool_registry.py` and `run_state.py`
+- verified `pytest tests/test_providers.py tests/test_runtime.py tests/test_sidecar_api.py`
+- verified actual sidecar SSE failure mode is clean when no OpenRouter key is configured: `error` event then `failed` state then `done`

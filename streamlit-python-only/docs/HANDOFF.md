@@ -20,7 +20,7 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
 ## Immediate Next Steps
 
 1. Add root project files:
-   - persist approval and clarification snapshots beyond in-memory sidecar state
+   - move pending control-flow persistence from local files into the canonical backend persistence layer
    - add richer run diagnostics and replay support
 2. Add backend run/session coverage:
    - better run metadata
@@ -69,3 +69,7 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
 - approval and clarification resume endpoints are wired and reachable
 - capabilities now expose both `files` and `clarification` modules
 - `write_file` is now classified as a risky tool in the Python tool registry
+- pending approval/clarification snapshots are now persisted under `artifacts/runtime_state/`
+- runtime emits `tool_call` and `tool_result` events
+- sidecar HTTP contract is covered by API tests
+- `scripts/verify_lot1.py` exists for reproducible runtime/provider checks
