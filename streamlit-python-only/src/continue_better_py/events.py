@@ -27,5 +27,52 @@ def token(value: str) -> dict:
     return {"type": "token", "token": value}
 
 
+def approval_required(run_id: str, approval_id: str, name: str, arguments: str, risk_level: str) -> dict:
+    return {
+        "type": "approval_required",
+        "runId": run_id,
+        "actionId": approval_id,
+        "name": name,
+        "riskLevel": risk_level,
+        "arguments": arguments,
+        "timestamp": now_iso(),
+    }
+
+
+def approval_decision(run_id: str, approval_id: str, decision: str, reason: str | None = None) -> dict:
+    event = {
+        "type": "approval_decision",
+        "runId": run_id,
+        "actionId": approval_id,
+        "decision": decision,
+        "timestamp": now_iso(),
+    }
+    if reason:
+        event["reason"] = reason
+    return event
+
+
+def clarification_required(
+    run_id: str,
+    clarification_id: str,
+    question: str,
+    options: list[dict[str, str]] | None = None,
+) -> dict:
+    return {
+        "type": "clarification_required",
+        "runId": run_id,
+        "clarificationId": clarification_id,
+        "question": question,
+        "questions": [question],
+        "options": options or [],
+        "allowFreeText": True,
+        "timestamp": now_iso(),
+    }
+
+
+def error_event(message: str) -> dict:
+    return {"type": "error", "error": message}
+
+
 def done() -> dict:
     return {"type": "done"}

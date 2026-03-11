@@ -9,7 +9,13 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
 from continue_better_py.events import sse
-from continue_better_py.schemas import ChatMessage, ChatStreamRequest, SessionCreateRequest
+from continue_better_py.schemas import (
+    ApprovalDecisionRequest,
+    ChatMessage,
+    ChatStreamRequest,
+    ClarificationDecisionRequest,
+    SessionCreateRequest,
+)
 from continue_better_py.settings import ensure_runtime_dirs, get_settings
 from continue_better_py.store import MongoStore
 
@@ -128,6 +134,40 @@ def create_backend_app() -> FastAPI:
                     store.add_message(request.session_id, "assistant", assistant_text)
                 except RuntimeError:
                     pass
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    @app.post("/approvals/stream")
+    @app.post("/v1/approvals/stream")
+    async def approval_stream(request: ApprovalDecisionRequest):
+        async def event_generator():
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream(
+                    "POST",
+                    f"{settings.orchestrator_sidecar_url}/v1/approvals/respond/stream",
+                    json=request.model_dump(),
+                ) as response:
+                    if response.status_code >= 400:
+                        raise HTTPException(status_code=response.status_code, detail=await response.aread())
+                    async for chunk in response.aiter_text():
+                        yield chunk
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    @app.post("/clarifications/stream")
+    @app.post("/v1/clarifications/stream")
+    async def clarification_stream(request: ClarificationDecisionRequest):
+        async def event_generator():
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream(
+                    "POST",
+                    f"{settings.orchestrator_sidecar_url}/v1/clarifications/respond/stream",
+                    json=request.model_dump(),
+                ) as response:
+                    if response.status_code >= 400:
+                        raise HTTPException(status_code=response.status_code, detail=await response.aread())
+                    async for chunk in response.aiter_text():
+                        yield chunk
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 

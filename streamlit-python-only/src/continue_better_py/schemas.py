@@ -34,5 +34,15 @@ class SidecarChatRequest(BaseModel):
     forceToolUse: str | None = None
 
 
+class ApprovalDecisionRequest(BaseModel):
+    approval_id: str
+    decision: str
+
+
+class ClarificationDecisionRequest(BaseModel):
+    clarification_id: str
+    answer: str
+
+
 class SessionCreateRequest(BaseModel):
     title: str | None = None

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
@@ -20,6 +20,20 @@ class WriteFileInput(BaseModel):
     content: str = Field(description="UTF-8 file content to write.")
 
 
+class ClarificationInput(BaseModel):
+    question: str = Field(description="Clarification question for the user.")
+    option_a: str | None = Field(default=None, description="First suggested answer.")
+    option_b: str | None = Field(default=None, description="Second suggested answer.")
+    option_c: str | None = Field(default=None, description="Third suggested answer.")
+
+
+@dataclass(slots=True)
+class ToolDefinition:
+    tool: StructuredTool
+    risk_level: str
+    module_id: str
+
+
 def resolve_workspace_path(workspace_root: str, relative_path: str) -> Path:
     root = Path(workspace_root).resolve()
     target = root.joinpath(relative_path).resolve()
@@ -28,7 +42,7 @@ def resolve_workspace_path(workspace_root: str, relative_path: str) -> Path:
     return target
 
 
-def build_tools(workspace_root: str) -> list[StructuredTool]:
+def build_tool_definitions(workspace_root: str) -> list[ToolDefinition]:
     def list_directory(path: str = ".") -> str:
         target = resolve_workspace_path(workspace_root, path)
         if not target.exists():
@@ -53,23 +67,65 @@ def build_tools(workspace_root: str) -> list[StructuredTool]:
         target.write_text(content, encoding="utf-8")
         return f"Wrote {path}"
 
+    def request_clarification(
+        question: str,
+        option_a: str | None = None,
+        option_b: str | None = None,
+        option_c: str | None = None,
+    ) -> str:
+        options = [value for value in [option_a, option_b, option_c] if value]
+        if options:
+            rendered = "\n".join(f"- {item}" for item in options)
+            return f"{question}\n{rendered}"
+        return question
+
     return [
-        StructuredTool.from_function(
-            func=list_directory,
-            name="list_directory",
-            description="List files and folders relative to the workspace root.",
-            args_schema=ListDirectoryInput,
+        ToolDefinition(
+            tool=StructuredTool.from_function(
+                func=list_directory,
+                name="list_directory",
+                description="List files and folders relative to the workspace root.",
+                args_schema=ListDirectoryInput,
+            ),
+            risk_level="safe",
+            module_id="files",
         ),
-        StructuredTool.from_function(
-            func=read_file,
-            name="read_file",
-            description="Read a UTF-8 file from the workspace root.",
-            args_schema=ReadFileInput,
+        ToolDefinition(
+            tool=StructuredTool.from_function(
+                func=read_file,
+                name="read_file",
+                description="Read a UTF-8 file from the workspace root.",
+                args_schema=ReadFileInput,
+            ),
+            risk_level="safe",
+            module_id="files",
         ),
-        StructuredTool.from_function(
-            func=write_file,
-            name="write_file",
-            description="Write a UTF-8 file inside the workspace root.",
-            args_schema=WriteFileInput,
+        ToolDefinition(
+            tool=StructuredTool.from_function(
+                func=write_file,
+                name="write_file",
+                description="Write a UTF-8 file inside the workspace root.",
+                args_schema=WriteFileInput,
+            ),
+            risk_level="risky",
+            module_id="files",
+        ),
+        ToolDefinition(
+            tool=StructuredTool.from_function(
+                func=request_clarification,
+                name="request_clarification",
+                description="Ask the user for clarification when the request is ambiguous or risky.",
+                args_schema=ClarificationInput,
+            ),
+            risk_level="safe",
+            module_id="clarification",
         ),
     ]
+
+
+def build_tools(workspace_root: str) -> list[StructuredTool]:
+    return [definition.tool for definition in build_tool_definitions(workspace_root)]
+
+
+def build_tool_lookup(workspace_root: str) -> dict[str, ToolDefinition]:
+    return {definition.tool.name: definition for definition in build_tool_definitions(workspace_root)}

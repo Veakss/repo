@@ -1,5 +1,6 @@
 from continue_better_py.providers import infer_mode, is_thales_url, simplify_schema_for_thales
 from continue_better_py.settings import ProviderProfile
+from continue_better_py.tooling import build_tool_lookup
 
 
 def test_is_thales_url_detects_corporate_endpoint():
@@ -33,3 +34,9 @@ def test_simplify_schema_for_thales_flattens_nested_types():
     assert simplified["required"] == ["query", "filters_json", "tags_json"]
     assert "filters_json" in simplified["properties"]
     assert "tags_json" in simplified["properties"]
+
+
+def test_write_file_is_marked_risky():
+    tools = build_tool_lookup("/tmp")
+    assert tools["write_file"].risk_level == "risky"
+    assert tools["request_clarification"].module_id == "clarification"

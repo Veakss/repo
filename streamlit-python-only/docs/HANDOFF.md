@@ -20,8 +20,8 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
 ## Immediate Next Steps
 
 1. Add root project files:
-   - wire real approval and clarification flows into the graph/runtime
-   - extend tool registry beyond file tools
+   - persist approval and clarification snapshots beyond in-memory sidecar state
+   - add richer run diagnostics and replay support
 2. Add backend run/session coverage:
    - better run metadata
    - graceful degraded mode when Mongo is unavailable
@@ -66,3 +66,6 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
 - `/v1/models` returns a live OpenRouter catalog
 - provider unit tests pass
 - first real chat attempt reached the model call boundary and failed only because the new subtree has no OpenRouter key configured yet
+- approval and clarification resume endpoints are wired and reachable
+- capabilities now expose both `files` and `clarification` modules
+- `write_file` is now classified as a risky tool in the Python tool registry

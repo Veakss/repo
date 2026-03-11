@@ -20,10 +20,13 @@
 - sidecar runtime starts locally
 - backend runtime starts locally
 - live OpenRouter model listing works from sidecar and backend
+- approval and clarification HTTP flows scaffolded
+- risky tool classification introduced for `write_file`
+- backend proxy endpoints added for approvals and clarifications
 
 ## In Progress
 
-- Mongo handling hardening
+- persistence of pending control-flow states
 - runtime chat path beyond the auth boundary
 - Streamlit shell expansion
 
@@ -47,3 +50,6 @@
 - verified sidecar `/health` and `/v1/models`
 - verified backend `/health`, `/models`, and `/capabilities`
 - attempted a real OpenRouter chat call; it reached the provider boundary and failed with `401 Missing Authentication header` because the new subtree does not yet have an API key configured
+- added `approval_required`, `approval_decision`, and `clarification_required` event scaffolding
+- verified sidecar resume endpoints return clean `404` responses for unknown approval/clarification ids
+- verified backend capabilities now expose the clarification module
