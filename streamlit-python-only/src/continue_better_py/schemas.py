@@ -46,3 +46,7 @@ class ClarificationDecisionRequest(BaseModel):
 
 class SessionCreateRequest(BaseModel):
     title: str | None = None
+
+
+class SessionUpdateRequest(BaseModel):
+    title: str

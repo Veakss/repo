@@ -28,6 +28,7 @@ memory = [
   "langmem>=0.0.1",
 ]
 dev = [
+  "mongomock>=4.1.2",
   "pytest>=8.3.0",
 ]
 

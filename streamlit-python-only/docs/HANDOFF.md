@@ -19,27 +19,21 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
 
 ## Immediate Next Steps
 
-1. Add root project files:
-   - move pending control-flow persistence from local files into the canonical backend persistence layer
-   - add richer run diagnostics and replay support
-2. Add backend run/session coverage:
-   - better run metadata
-   - graceful degraded mode when Mongo is unavailable
-3. Add Streamlit feature panels:
-   - sessions
-   - files
-   - RAG
-   - approvals
-   - Matrix
-4. Add real OpenRouter smoke once an API key is present in the new subtree `.env`
-5. Port Matrix runner and dashboard
+1. Start lot 3:
+   - wire Streamlit to backend session CRUD and chat streaming
+   - add a run timeline panel backed by `/v1/runs` and `/v1/runs/{run_id}/events`
+   - expose approval and clarification actions from the UI
+2. Preserve backend contract while growing the UI:
+   - keep session list, messages, and run details sourced from Mongo-backed endpoints
+   - reuse the new run metadata counters in the timeline and status pills
+3. Add file, RAG, and Matrix panels progressively on top of the current Streamlit shell
+4. When a Mongo daemon is available locally, run a live backend smoke using the real backend plus sidecar stack
+5. Port Matrix runner and dashboard after the Streamlit app can drive normal runs end to end
 
 ## Practical Constraints
 
-- No Git remote is configured right now
-- Local commits can be made
-- `git push` is blocked until a remote is added
 - Docker is not installed on this machine right now, so the local Mongo bootstrap must not assume Docker
+- `mongod` is not installed and port `27017` is closed, so live backend validation currently relies on `mongomock`-backed tests rather than a real daemon
 
 ## Legacy Reference Areas
 
@@ -76,3 +70,10 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
 - `streamlit-python-only/.env` is now locally configured from the parent project credentials mapping to OpenRouter
 - live OpenRouter validation succeeded with `google/gemini-2.5-flash-lite-preview-09-2025`
 - live approval flow succeeded end-to-end on a real `write_file` tool call
+- backend now persists sessions, messages, runs, run events, approvals, and clarifications in Mongo collections
+- run artifacts now mirror both event JSONL and metadata JSON files under `artifacts/runs/`
+- backend exposes `GET/PATCH/DELETE /v1/sessions/{session_id}`, `GET /v1/runs`, and `GET /v1/runs/{run_id}/events`
+- approval and clarification backend relays now write durable state before and during replay
+- `tests/test_store.py` covers persistence and cascading delete behavior
+- `tests/test_backend_api.py` covers backend session CRUD, streaming persistence, approvals, and clarifications
+- `scripts/verify_lot2.py` runs the full lot 2 verification set and compile checks
