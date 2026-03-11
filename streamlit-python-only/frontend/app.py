@@ -406,7 +406,7 @@ def render_header() -> None:
     if st.session_state["selected_model"] not in model_labels:
         st.session_state["selected_model"] = model_labels[0]
 
-    title_col, meta_col = st.columns([1.1, 1.25], gap="large")
+    title_col, meta_col = st.columns([1.02, 1.18], gap="large")
     with title_col:
         st.markdown('<div class="cb-title-block"><h1>Continue Better</h1><p>Python control plane with a cleaner shell and JS-parity runtime controls</p></div>', unsafe_allow_html=True)
         render_shell_stats()
@@ -436,22 +436,41 @@ def render_header() -> None:
             f'<div class="cb-capability-row">{"".join(f"<span class=\"cb-capability-pill\">{badge}</span>" for badge in badges) or "<span class=\"cb-capability-pill\">No capabilities</span>"}</div>',
             unsafe_allow_html=True,
         )
-    control_cols = st.columns([1, 1, 1, 1, 1.1])
-    control_cols[0].checkbox("Web", key="tool_toggle_web", value=st.session_state["tool_toggles"]["webSearch"])
-    control_cols[1].checkbox("RAG", key="tool_toggle_rag", value=st.session_state["tool_toggles"]["rag"])
-    control_cols[2].checkbox("Apps", key="tool_toggle_apps", value=st.session_state["tool_toggles"]["appActions"])
-    control_cols[3].checkbox("Clarify", key="tool_toggle_clarification", value=st.session_state["tool_toggles"]["clarification"])
-    control_cols[4].selectbox(
-        "Timeline",
-        options=["all", "errors", "approvals", "terminal", "files"],
-        key="timeline_filter",
-        format_func=lambda value: value.title(),
-    )
+    tool_options = [
+        ("Web", "webSearch"),
+        ("RAG", "rag"),
+        ("Apps", "appActions"),
+        ("Clarify", "clarification"),
+    ]
+    selected_tools = [
+        label
+        for label, toggle_key in tool_options
+        if bool(st.session_state["tool_toggles"].get(toggle_key, False))
+    ]
+    controls_left, controls_right = st.columns([1.45, 0.72], gap="medium")
+    with controls_left:
+        st.markdown("##### Tool Access")
+        chosen_tools = st.segmented_control(
+            "Tool access",
+            options=[label for label, _ in tool_options],
+            default=selected_tools,
+            selection_mode="multi",
+            key="tool_access_segments",
+            label_visibility="collapsed",
+        )
+        chosen_tool_labels = set(chosen_tools or [])
+    with controls_right:
+        st.markdown("##### Timeline")
+        st.selectbox(
+            "Timeline",
+            options=["all", "errors", "approvals", "terminal", "files"],
+            key="timeline_filter",
+            format_func=lambda value: value.title(),
+            label_visibility="collapsed",
+        )
     st.session_state["tool_toggles"] = {
-        "webSearch": bool(st.session_state.get("tool_toggle_web", True)),
-        "rag": bool(st.session_state.get("tool_toggle_rag", True)),
-        "appActions": bool(st.session_state.get("tool_toggle_apps", True)),
-        "clarification": bool(st.session_state.get("tool_toggle_clarification", True)),
+        toggle_key: label in chosen_tool_labels
+        for label, toggle_key in tool_options
     }
     st.caption("Directives: `/rag`, `/web`, `/apps`, `/clarify` force the matching orchestration mode for one run.")
     st.markdown('<div class="cb-header-divider"></div>', unsafe_allow_html=True)
@@ -882,18 +901,18 @@ def inject_css() -> None:
         .block-container {
             padding-top: 1rem;
             padding-bottom: 8rem;
-            max-width: 1880px;
+            max-width: 1720px;
         }
         .cb-title-block h1 {
-            font-size: 2.75rem !important;
+            font-size: 2.45rem !important;
             line-height: 0.96 !important;
             margin: 0 0 0.3rem 0 !important;
         }
         .cb-title-block p {
             margin: 0;
             color: var(--cb-muted);
-            font-size: 0.98rem;
-            max-width: 44rem;
+            font-size: 0.9rem;
+            max-width: 40rem;
         }
         [data-testid="stChatMessage"] {
             background: linear-gradient(180deg, rgba(16,25,38,0.92), rgba(14,22,34,0.82));
@@ -918,13 +937,13 @@ def inject_css() -> None:
         .cb-capability-pill {
             display: inline-flex;
             align-items: center;
-            min-height: 28px;
-            padding: 0 10px;
+            min-height: 26px;
+            padding: 0 9px;
             border-radius: 999px;
             border: 1px solid rgba(126,203,255,0.18);
             background: rgba(126,203,255,0.08);
             color: #cfe9ff;
-            font-size: 12px;
+            font-size: 11px;
         }
         .cb-notice {
             margin: 0 0 14px 0;
@@ -956,9 +975,17 @@ def inject_css() -> None:
             font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif !important;
         }
         h1 {
-            font-size: 2.75rem !important;
+            font-size: 2.45rem !important;
             line-height: 0.95 !important;
             margin-bottom: 0.25rem !important;
+        }
+        h4 {
+            font-size: 0.95rem !important;
+            letter-spacing: 0.03em;
+        }
+        [data-testid="stMarkdownContainer"] p,
+        [data-testid="stCaptionContainer"] {
+            font-size: 0.95rem;
         }
         [data-testid="stMarkdownContainer"] p {
             color: var(--cb-text);
@@ -991,21 +1018,49 @@ def inject_css() -> None:
             background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
             color: var(--cb-text);
             font-weight: 600;
-            min-height: 2.8rem;
+            min-height: 2.55rem;
+            font-size: 0.94rem;
         }
         .stButton > button[kind="primary"] {
             background: linear-gradient(180deg, rgba(126,203,255,0.22), rgba(126,203,255,0.12));
             border-color: rgba(126,203,255,0.28);
+        }
+        [data-testid="stSegmentedControl"] {
+            background: rgba(8, 13, 21, 0.68);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 18px;
+            padding: 0.28rem;
+            min-height: 3rem;
+        }
+        [data-testid="stSegmentedControl"] [role="radiogroup"],
+        [data-testid="stSegmentedControl"] [role="group"] {
+            gap: 0.35rem;
+        }
+        [data-testid="stSegmentedControl"] button {
+            border-radius: 13px !important;
+            min-height: 2.3rem !important;
+            padding: 0.2rem 0.8rem !important;
+            border: 1px solid transparent !important;
+            background: transparent !important;
+            color: rgba(223, 232, 241, 0.72) !important;
+            font-size: 0.9rem !important;
+            font-weight: 600 !important;
+        }
+        [data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+            background: linear-gradient(180deg, rgba(126,203,255,0.22), rgba(126,203,255,0.1)) !important;
+            border-color: rgba(126,203,255,0.24) !important;
+            color: #f2f8ff !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
         }
         [data-testid="stChatInput"] {
             position: fixed;
             left: 50%;
             bottom: 1rem;
             transform: translateX(-50%);
-            width: min(52vw, 900px);
+            width: min(48vw, 860px);
             z-index: 999;
             background: linear-gradient(180deg, rgba(7, 15, 24, 0.94), rgba(7, 15, 24, 0.82));
-            padding: 0.7rem 0.75rem;
+            padding: 0.58rem 0.68rem;
             border-radius: 20px;
             border: 1px solid rgba(255,255,255,0.08);
             box-shadow: 0 18px 50px rgba(0,0,0,0.34);
@@ -1033,7 +1088,7 @@ def inject_css() -> None:
                 font-size: 2.2rem !important;
             }
             [data-testid="stChatInput"] {
-                width: min(68vw, 900px);
+                width: min(64vw, 900px);
             }
         }
         </style>
