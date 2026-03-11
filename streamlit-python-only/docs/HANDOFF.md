@@ -73,3 +73,6 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
 - runtime emits `tool_call` and `tool_result` events
 - sidecar HTTP contract is covered by API tests
 - `scripts/verify_lot1.py` exists for reproducible runtime/provider checks
+- `streamlit-python-only/.env` is now locally configured from the parent project credentials mapping to OpenRouter
+- live OpenRouter validation succeeded with `google/gemini-2.5-flash-lite-preview-09-2025`
+- live approval flow succeeded end-to-end on a real `write_file` tool call

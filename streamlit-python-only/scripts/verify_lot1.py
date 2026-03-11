@@ -5,9 +5,11 @@ import os
 import sys
 
 import requests
+from dotenv import load_dotenv
 
 
 def main() -> int:
+    load_dotenv()
     sidecar_url = os.getenv("SIDECAR_URL", "http://127.0.0.1:4001")
     model = os.getenv("LOT1_MODEL", "google/gemini-2.5-flash-lite-preview-09-2025")
 

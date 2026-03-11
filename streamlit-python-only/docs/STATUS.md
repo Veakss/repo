@@ -28,6 +28,9 @@
 - tool registry abstraction added
 - sidecar API tests added
 - lot 1 verification script added
+- local OpenRouter/Gemini config wired into `streamlit-python-only/.env`
+- live Gemini 2.5 Flash Lite smoke passed
+- live approval flow on `write_file` passed
 
 ## In Progress
 
@@ -60,3 +63,7 @@
 - extracted the sidecar runtime to `runtime.py`, with dedicated `tool_registry.py` and `run_state.py`
 - verified `pytest tests/test_providers.py tests/test_runtime.py tests/test_sidecar_api.py`
 - verified actual sidecar SSE failure mode is clean when no OpenRouter key is configured: `error` event then `failed` state then `done`
+- mapped the parent project OpenRouter-compatible credentials into `streamlit-python-only/.env`
+- verified `scripts/verify_lot1.py` with real OpenRouter auth and live completion
+- verified a real `write_file` approval cycle against `google/gemini-2.5-flash-lite-preview-09-2025`
+- verified the created file `/Users/victor/Documents/continue-better/agent_playground/lot1_live.txt` contains `ok`
