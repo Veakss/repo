@@ -4,7 +4,7 @@
 
 - Branch target: `codex/streamlit-python-only`
 - Remote push: available on `origin`
-- Current phase: lot 4 complete, ready for lot 5
+- Current phase: lot 5 complete, ready for lot 6
 
 ## Done
 
@@ -51,16 +51,22 @@
 - runtime now exposes a `rag_lookup` tool for session-aware retrieval
 - Streamlit RAG tab now supports imports, profile CRUD, indexing jobs, memory config, and manual lookup
 - lot 4 verification scripts added, including a live retrieval smoke
+- Matrix scenario catalog ported to Python with stable local fixtures and sandbox paths
+- Matrix runner added with backend relay, direct runtime, and compatibility surface presets
+- Matrix reports now persist to Mongo and JSON mirrors under `artifacts/matrix/`
+- backend now exposes Matrix catalog, jobs, reports, and compare endpoints
+- Streamlit Matrix tab now supports run launch, job polling, report browsing, filtering, and compare
+- lot 5 verification scripts added, including a live Matrix smoke against backend + sidecar + Mongo
 
 ## In Progress
 
-- Matrix Python port planning
 - terminal parity planning
+- parity closure and hardening planning
 
 ## Next Verification Point
 
-- Matrix reports can be generated, stored, and browsed from the Python stack
-- benchmark runs can be launched from Streamlit without the TS matrix runner
+- terminal runtime and UI parity become usable for daily workflows
+- matrix surface gaps and remaining parity failures are turned into an explicit closure checklist
 
 ## Update Log
 
@@ -108,3 +114,10 @@
 - verified `pytest` across the full Python subtree including RAG coverage: `23 passed`
 - verified `python scripts/verify_lot4.py`
 - verified `python scripts/verify_lot4_live.py` with real import, indexing, lookup, memory, backend, sidecar, Mongo, and a real model response of `AURORA_PHASE4`
+- added `src/continue_better_py/matrix_catalog.py` and `src/continue_better_py/matrix.py` for the Python Matrix Lab catalog, runner, grading, aggregation, and persistence
+- added backend Matrix routes for catalog, jobs, reports, and compare
+- rebuilt the Streamlit Matrix tab to launch jobs, inspect job progress, browse reports, filter results, and compare reports
+- added `tests/test_matrix_service.py` and expanded backend/frontend coverage for Matrix flows
+- verified `pytest` across the full Python subtree including Matrix coverage: `26 passed`
+- verified `python scripts/verify_lot5.py`
+- verified `python scripts/verify_lot5_live.py` with real backend, sidecar, Mongo, job execution, report persistence, and compare

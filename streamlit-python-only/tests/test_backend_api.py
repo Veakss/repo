@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import time
 
 import httpx
 import mongomock
 from fastapi.testclient import TestClient
 
 from continue_better_py.backend_app import create_backend_app
+from continue_better_py.matrix import MatrixService
 from continue_better_py.store import MongoStore
 
 
@@ -22,7 +24,7 @@ def encode_sse(events: list[dict]) -> str:
     return "".join(f"data: {json.dumps(event, ensure_ascii=False)}\n\n" for event in events)
 
 
-def build_test_client(tmp_path, handler) -> tuple[TestClient, MongoStore]:
+def build_test_client(tmp_path, handler, matrix_service: MatrixService | None = None) -> tuple[TestClient, MongoStore]:
     store = MongoStore(
         client=mongomock.MongoClient(),
         database_name="continue_better_python_backend_test",
@@ -33,7 +35,7 @@ def build_test_client(tmp_path, handler) -> tuple[TestClient, MongoStore]:
     workspace.joinpath("notes.txt").write_text("hello workspace", encoding="utf-8")
     store.settings.workspace_root = str(workspace)
     transport = httpx.MockTransport(handler)
-    return TestClient(create_backend_app(store=store, sidecar_transport=transport, sidecar_base_url="http://sidecar.test")), store
+    return TestClient(create_backend_app(store=store, sidecar_transport=transport, sidecar_base_url="http://sidecar.test", matrix_service=matrix_service)), store
 
 
 def test_backend_session_crud_and_run_queries(tmp_path):
@@ -245,3 +247,80 @@ def test_backend_proxies_rag_routes(tmp_path):
     lookup = client.post("/v1/rag/lookup", json={"question": "phase 4", "session_id": session_id})
     assert lookup.status_code == 200
     assert lookup.json()["hits"][0]["citation"]["path"] == "notes.txt"
+
+
+def test_backend_exposes_matrix_routes(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/sessions" and request.method == "POST":
+            return httpx.Response(200, json={"session_id": "matrix-session-1"})
+        if request.url.path == "/v1/chat/stream":
+            body = encode_sse(
+                [
+                    {"type": "run_state", "runId": "matrix-run-1", "state": "planning", "timestamp": "2026-03-11T12:20:00+00:00"},
+                    {"type": "tool_call", "runId": "matrix-run-1", "actionId": "call-1", "name": "read_file", "arguments": "{\"path\":\"matrix_fixtures/roadmap_status.md\"}", "timestamp": "2026-03-11T12:20:01+00:00"},
+                    {"type": "token", "token": "AURORA_PHASE4"},
+                    {"type": "run_state", "runId": "matrix-run-1", "state": "completed", "timestamp": "2026-03-11T12:20:02+00:00"},
+                    {"type": "done"},
+                ]
+            )
+            return httpx.Response(200, text=body, headers={"content-type": "text/event-stream"})
+        if request.url.path == "/v1/capabilities":
+            return httpx.Response(200, json={"tools": {"files": True}})
+        if request.url.path == "/v1/models":
+            return httpx.Response(200, json={"models": [{"id": "gemini"}]})
+        raise AssertionError(f"Unexpected path: {request.url.path} {request.method}")
+
+    store = MongoStore(
+        client=mongomock.MongoClient(),
+        database_name="continue_better_python_backend_matrix_test",
+        artifacts_root=tmp_path,
+    )
+    matrix_transport = httpx.MockTransport(handler)
+    matrix_service = MatrixService(
+        store=store,
+        backend_base_url="http://backend.test",
+        sidecar_base_url="http://sidecar.test",
+        backend_transport=matrix_transport,
+        sidecar_transport=matrix_transport,
+    )
+    client, _ = build_test_client(tmp_path, handler, matrix_service=matrix_service)
+
+    catalog = client.get("/v1/matrix/catalog")
+    assert catalog.status_code == 200
+    assert any(scenario["id"] == "social_no_clarify" for scenario in catalog.json()["scenarios"])
+
+    job_resp = client.post(
+        "/v1/matrix/jobs",
+        json={
+            "models": ["gemini"],
+            "scenario_ids": ["read_file_phase_status"],
+            "profiles": ["baseline_current"],
+            "surfaces": ["backend_relay"],
+        },
+    )
+    assert job_resp.status_code == 200
+    job_id = job_resp.json()["job"]["job_id"]
+
+    deadline = time.time() + 5
+    job = None
+    while time.time() < deadline:
+        polled = client.get(f"/v1/matrix/jobs/{job_id}")
+        assert polled.status_code == 200
+        job = polled.json()["job"]
+        if job["status"] == "done":
+            break
+    assert job is not None
+    assert job["status"] == "done"
+    report_id = job["report_id"]
+
+    reports = client.get("/v1/matrix/reports")
+    assert reports.status_code == 200
+    assert any(row["report_id"] == report_id for row in reports.json()["reports"])
+
+    report = client.get(f"/v1/matrix/reports/{report_id}")
+    assert report.status_code == 200
+    assert report.json()["report"]["results"][0]["summary"]["finalText"] == "AURORA_PHASE4"
+
+    compare = client.get("/v1/matrix/compare", params={"current_report_id": report_id, "baseline_report_id": report_id})
+    assert compare.status_code == 200
+    assert compare.json()["comparison"]["summary"]["currentRuns"] == 1

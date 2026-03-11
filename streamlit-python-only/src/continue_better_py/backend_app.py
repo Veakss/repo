@@ -10,11 +10,13 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from continue_better_py.events import now_iso, sse
+from continue_better_py.matrix import MatrixService
 from continue_better_py.schemas import (
     ApprovalDecisionRequest,
     ChatMessage,
     ChatStreamRequest,
     ClarificationDecisionRequest,
+    MatrixRunRequest,
     RagImportRequest,
     RagLookupRequest,
     RagProfileCreateRequest,
@@ -94,12 +96,14 @@ def create_backend_app(
     settings: Settings | None = None,
     sidecar_transport: httpx.AsyncBaseTransport | None = None,
     sidecar_base_url: str | None = None,
+    matrix_service: MatrixService | None = None,
 ) -> FastAPI:
     ensure_runtime_dirs()
     settings = settings or get_settings()
     store = store or MongoStore(settings=settings)
     app = FastAPI(title="Continue Better Python Backend", version="0.2.0")
     resolved_sidecar_url = (sidecar_base_url or settings.orchestrator_sidecar_url).rstrip("/")
+    matrix_service = matrix_service or MatrixService(store=store, settings=settings)
 
     def sidecar_client(timeout: float | None = None) -> httpx.AsyncClient:
         return httpx.AsyncClient(
@@ -148,6 +152,73 @@ def create_backend_app(
             if response.status_code >= 400:
                 _raise_sidecar_error(response)
             return response.json()
+
+    @app.get("/v1/matrix/catalog")
+    def matrix_catalog() -> dict[str, Any]:
+        try:
+            return {
+                "scenarios": matrix_service.list_scenarios(),
+                "profiles": matrix_service.list_profiles(),
+                "surfaces": matrix_service.list_surfaces(),
+            }
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.get("/v1/matrix/reports")
+    def matrix_reports(limit: int = Query(25, ge=1, le=200)) -> dict[str, Any]:
+        try:
+            return {"reports": matrix_service.list_reports(limit)}
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.get("/v1/matrix/reports/{report_id}")
+    def matrix_report(report_id: str) -> dict[str, Any]:
+        try:
+            report = matrix_service.get_report(report_id)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if not report:
+            raise HTTPException(status_code=404, detail="Matrix report not found")
+        return {"report": report}
+
+    @app.get("/v1/matrix/compare")
+    def matrix_compare(current_report_id: str = Query(...), baseline_report_id: str = Query(...)) -> dict[str, Any]:
+        try:
+            return {
+                "comparison": matrix_service.compare(
+                    current_report_id=current_report_id,
+                    baseline_report_id=baseline_report_id,
+                )
+            }
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.get("/v1/matrix/jobs")
+    def matrix_jobs(limit: int = Query(25, ge=1, le=200)) -> dict[str, Any]:
+        try:
+            return {"jobs": matrix_service.list_jobs(limit)}
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.get("/v1/matrix/jobs/{job_id}")
+    def matrix_job(job_id: str) -> dict[str, Any]:
+        try:
+            job = matrix_service.get_job(job_id)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if not job:
+            raise HTTPException(status_code=404, detail="Matrix job not found")
+        return {"job": job}
+
+    @app.post("/v1/matrix/jobs")
+    def matrix_start_job(request: MatrixRunRequest) -> dict[str, Any]:
+        try:
+            job = matrix_service.create_job(request.model_dump(exclude_none=True))
+            return {"job": job}
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     @app.get("/v1/rag/profiles")
     async def rag_list_profiles() -> dict[str, Any]:

@@ -222,6 +222,51 @@ class BackendClient:
             response.raise_for_status()
             return response.json()
 
+    def matrix_catalog(self) -> dict[str, Any]:
+        with self._client(timeout=30.0) as client:
+            response = client.get("/v1/matrix/catalog")
+            response.raise_for_status()
+            return response.json()
+
+    def matrix_list_reports(self, limit: int | None = None) -> list[dict[str, Any]]:
+        with self._client(timeout=30.0) as client:
+            response = client.get("/v1/matrix/reports", params={"limit": limit} if limit else None)
+            response.raise_for_status()
+            return response.json()["reports"]
+
+    def matrix_get_report(self, report_id: str) -> dict[str, Any]:
+        with self._client(timeout=30.0) as client:
+            response = client.get(f"/v1/matrix/reports/{report_id}")
+            response.raise_for_status()
+            return response.json()["report"]
+
+    def matrix_list_jobs(self, limit: int | None = None) -> list[dict[str, Any]]:
+        with self._client(timeout=30.0) as client:
+            response = client.get("/v1/matrix/jobs", params={"limit": limit} if limit else None)
+            response.raise_for_status()
+            return response.json()["jobs"]
+
+    def matrix_get_job(self, job_id: str) -> dict[str, Any]:
+        with self._client(timeout=30.0) as client:
+            response = client.get(f"/v1/matrix/jobs/{job_id}")
+            response.raise_for_status()
+            return response.json()["job"]
+
+    def matrix_start_job(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with self._client(timeout=30.0) as client:
+            response = client.post("/v1/matrix/jobs", json=payload)
+            response.raise_for_status()
+            return response.json()["job"]
+
+    def matrix_compare(self, current_report_id: str, baseline_report_id: str) -> dict[str, Any]:
+        with self._client(timeout=30.0) as client:
+            response = client.get(
+                "/v1/matrix/compare",
+                params={"current_report_id": current_report_id, "baseline_report_id": baseline_report_id},
+            )
+            response.raise_for_status()
+            return response.json()["comparison"]
+
     def stream_chat(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
         with self._client(timeout=None) as client:
             with client.stream("POST", "/v1/chat/stream", json=payload) as response:

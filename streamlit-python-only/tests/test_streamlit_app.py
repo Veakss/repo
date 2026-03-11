@@ -99,6 +99,53 @@ class FakeClient:
     def rag_delete_profile_file(self, profile_name, file_id):
         return {"ok": True}
 
+    def matrix_catalog(self):
+        return {
+            "scenarios": [{"id": "social_no_clarify"}, {"id": "read_file_phase_status"}],
+            "profiles": [{"id": "baseline_current"}],
+            "surfaces": [{"id": "backend_relay"}],
+        }
+
+    def matrix_list_reports(self, limit=None):
+        return [{"report_id": "matrix-1", "generatedAt": "2026-03-11T12:00:00+00:00"}]
+
+    def matrix_list_jobs(self, limit=None):
+        return [{"job_id": "job-1", "status": "done", "progress": {"completed": 1, "total": 1, "label": "done"}, "report_id": "matrix-1"}]
+
+    def matrix_get_report(self, report_id):
+        return {
+            "report_id": report_id,
+            "models": ["google/gemini-2.5-flash-lite-preview-09-2025"],
+            "profiles": ["baseline_current"],
+            "surfaces": ["backend_relay"],
+            "aggregate": {
+                "byModelProfileSurface": {
+                    "google/gemini-2.5-flash-lite-preview-09-2025::baseline_current::backend_relay": {
+                        "runs": 1,
+                        "passRate": 1.0,
+                        "avgScore": 1.0,
+                        "hard_fail": 0,
+                    }
+                }
+            },
+            "results": [
+                {
+                    "scenarioId": "social_no_clarify",
+                    "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+                    "profile": "baseline_current",
+                    "surface": "backend_relay",
+                    "grade": {"overall": "pass", "score": 9, "maxScore": 9},
+                    "summary": {"tools": [], "state": "completed", "latencyMs": 100},
+                }
+            ],
+        }
+
+    def matrix_start_job(self, payload):
+        return {"job_id": "job-2", "status": "queued", "progress": {"completed": 0, "total": 1, "label": "queued"}}
+
+    def matrix_compare(self, current_report_id, baseline_report_id):
+        return {"summary": {"currentRuns": 1, "baselineRuns": 1}, "byModel": [{"key": "gemini"}]}
+
     def stream_chat(self, payload):
         return iter([])
 
@@ -110,8 +157,8 @@ class FakeClient:
 
 run_app(client_factory=lambda: FakeClient())
 """
-    at = AppTest.from_string(script)
-    at.run()
+    at = AppTest.from_string(script, default_timeout=10)
+    at.run(timeout=10)
 
     assert any(item.value == "Continue Better" for item in at.title)
     assert any(metric.label == "Pending Approvals" and metric.value == "1" for metric in at.metric)
@@ -119,3 +166,4 @@ run_app(client_factory=lambda: FakeClient())
     assert any(button.label == "Reject" for button in at.button)
     assert any(tab.label == "Timeline" for tab in at.tabs)
     assert any(tab.label == "Files" for tab in at.tabs)
+    assert any(button.label == "Start Matrix Run" for button in at.button)

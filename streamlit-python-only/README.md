@@ -16,7 +16,9 @@ Current focus:
 1. Lot 1: provider/runtime foundation for OpenRouter and Thales
 2. Lot 2: backend persistence and API parity
 3. Lot 3: Streamlit UI parity
-4. Lot 4: Matrix Lab Python port
+4. Lot 4: RAG parity
+5. Lot 5: Matrix Lab Python port
+6. Lot 6: hardening and parity closure
 
 See:
 

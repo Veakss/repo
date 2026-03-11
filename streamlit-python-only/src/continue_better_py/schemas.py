@@ -86,3 +86,15 @@ class RagLookupRequest(BaseModel):
 class RagMemoryAppendRequest(BaseModel):
     prompt: str
     answer: str
+
+
+class MatrixRunRequest(BaseModel):
+    models: list[str] | None = None
+    scenarios: list[str] | None = None
+    scenario_ids: list[str] | None = None
+    categories: list[str] | None = None
+    repeat: int = 1
+    profiles: list[str] | None = None
+    surfaces: list[str] | None = None
+    all_profiles: bool = False
+    all_surfaces: bool = False

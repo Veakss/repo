@@ -51,6 +51,13 @@ def ensure_state() -> None:
         "rag_memory": None,
         "selected_rag_profile": None,
         "rag_lookup_response": None,
+        "matrix_catalog": None,
+        "matrix_reports": [],
+        "matrix_jobs": [],
+        "matrix_selected_report_id": None,
+        "matrix_report": None,
+        "matrix_compare_report_id": None,
+        "matrix_compare_payload": None,
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -132,6 +139,7 @@ def bootstrap(client: BackendClient) -> None:
         st.session_state["file_tree"] = None
         st.session_state["file_content"] = ""
     refresh_rag_state(client)
+    refresh_matrix_state(client)
 
 
 def consume_events(client: BackendClient, session_id: str, events: list[dict[str, Any]], assistant_text: str | None = None) -> None:
@@ -148,6 +156,7 @@ def consume_events(client: BackendClient, session_id: str, events: list[dict[str
         st.session_state["messages"].append({"role": "assistant", "content": assistant_text})
     refresh_session_state(client, session_id)
     refresh_rag_state(client)
+    refresh_matrix_state(client)
 
 
 def refresh_rag_state(client: BackendClient) -> None:
@@ -168,12 +177,39 @@ def refresh_rag_state(client: BackendClient) -> None:
         pass
 
 
+def refresh_matrix_state(client: BackendClient) -> None:
+    try:
+        catalog = client.matrix_catalog()
+        reports = client.matrix_list_reports(limit=30)
+        jobs = client.matrix_list_jobs(limit=20)
+        st.session_state["matrix_catalog"] = catalog
+        st.session_state["matrix_reports"] = reports
+        st.session_state["matrix_jobs"] = jobs
+        selected_report_id = st.session_state.get("matrix_selected_report_id")
+        available_ids = {report["report_id"] for report in reports}
+        if reports and selected_report_id not in available_ids:
+            selected_report_id = reports[0]["report_id"]
+            st.session_state["matrix_selected_report_id"] = selected_report_id
+        if selected_report_id:
+            st.session_state["matrix_report"] = client.matrix_get_report(selected_report_id)
+        else:
+            st.session_state["matrix_report"] = None
+            st.session_state["matrix_selected_report_id"] = None
+        compare_id = st.session_state.get("matrix_compare_report_id")
+        if compare_id and compare_id not in available_ids:
+            st.session_state["matrix_compare_report_id"] = None
+            st.session_state["matrix_compare_payload"] = None
+    except Exception:
+        pass
+
+
 def create_session(client: BackendClient, title: str | None = None) -> None:
     created = client.create_session(title)
     st.session_state["session_id"] = created["session_id"]
     refresh_bootstrap(client)
     refresh_session_state(client, st.session_state["session_id"])
     refresh_rag_state(client)
+    refresh_matrix_state(client)
     set_status(message="Session created")
 
 
@@ -501,6 +537,149 @@ def render_rag_panel(client: BackendClient) -> None:
                 st.write(hit.get("snippet", ""))
 
 
+def _format_ratio(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value * 100:.1f}%"
+
+
+def render_matrix_panel(client: BackendClient) -> None:
+    catalog = st.session_state.get("matrix_catalog") or {"scenarios": [], "profiles": [], "surfaces": []}
+    reports = st.session_state.get("matrix_reports") or []
+    jobs = st.session_state.get("matrix_jobs") or []
+
+    controls = st.columns([1.4, 1])
+    if controls[1].button("Refresh Matrix", use_container_width=True):
+        refresh_matrix_state(client)
+        st.rerun()
+
+    model_labels = [row.get("id") or row.get("name") or "unknown-model" for row in st.session_state.get("models") or []] or [get_settings().llm_model]
+    scenario_options = [scenario["id"] for scenario in catalog.get("scenarios", [])]
+    profile_options = [profile["id"] for profile in catalog.get("profiles", [])]
+    surface_options = [surface["id"] for surface in catalog.get("surfaces", [])]
+
+    with st.expander("Launch Run", expanded=True):
+        selected_models = st.multiselect("Models", options=model_labels, default=model_labels[:1], key="matrix_models")
+        selected_scenarios = st.multiselect("Scenarios", options=scenario_options, default=scenario_options[:3], key="matrix_scenarios")
+        selected_profiles = st.multiselect("Profiles", options=profile_options, default=profile_options[:1], key="matrix_profiles")
+        selected_surfaces = st.multiselect("Surfaces", options=surface_options, default=surface_options[:1], key="matrix_surfaces")
+        repeat = int(st.number_input("Repeat", min_value=1, max_value=5, value=1, step=1, key="matrix_repeat"))
+        if st.button("Start Matrix Run", use_container_width=True, disabled=not selected_models or not selected_scenarios or not selected_profiles or not selected_surfaces):
+            job = client.matrix_start_job(
+                {
+                    "models": selected_models,
+                    "scenario_ids": selected_scenarios,
+                    "profiles": selected_profiles,
+                    "surfaces": selected_surfaces,
+                    "repeat": repeat,
+                }
+            )
+            st.session_state["matrix_jobs"] = [job] + jobs
+            set_status(message=f"Matrix job started: {job['job_id']}")
+            refresh_matrix_state(client)
+            st.rerun()
+
+    with st.expander("Jobs", expanded=True):
+        if not jobs:
+            st.info("No matrix jobs yet.")
+        for job in jobs[:8]:
+            st.markdown(f"**{job['job_id']}**")
+            progress = job.get("progress", {})
+            total = int(progress.get("total") or 0)
+            completed = int(progress.get("completed") or 0)
+            label = progress.get("label") or job.get("status") or "idle"
+            st.caption(f"Status: {job.get('status')} | {label}")
+            st.progress((completed / total) if total else 0.0)
+            if job.get("report_id"):
+                st.caption(f"Report: {job['report_id']}")
+
+    with st.expander("Reports", expanded=True):
+        if not reports:
+            st.info("No matrix reports yet.")
+            return
+        report_ids = [report["report_id"] for report in reports]
+        selected_report_id = st.selectbox("Active report", options=report_ids, key="matrix_selected_report_id")
+        if selected_report_id:
+            st.session_state["matrix_report"] = client.matrix_get_report(selected_report_id)
+        report = st.session_state.get("matrix_report")
+        if not report:
+            return
+        summary = report.get("aggregate", {}).get("byModel", {})
+        results = report.get("results", [])
+        runs = len(results)
+        pass_count = sum(1 for row in results if row["grade"]["overall"] == "pass")
+        hard_fail_count = sum(1 for row in results if row["grade"]["overall"] == "hard_fail")
+        metric_cols = st.columns(4)
+        metric_cols[0].metric("Runs", str(runs))
+        metric_cols[1].metric("Pass Rate", _format_ratio(pass_count / runs if runs else None))
+        metric_cols[2].metric("Hard Fail Rate", _format_ratio(hard_fail_count / runs if runs else None))
+        avg_score = sum(row["grade"]["score"] / row["grade"]["maxScore"] for row in results) / runs if runs else None
+        metric_cols[3].metric("Avg Score", _format_ratio(avg_score))
+
+        filters = st.columns(4)
+        filter_model = filters[0].selectbox("Filter model", options=["all"] + sorted(report.get("models", [])), index=0, key="matrix_filter_model")
+        filter_profile = filters[1].selectbox("Filter profile", options=["all"] + sorted(report.get("profiles", [])), index=0, key="matrix_filter_profile")
+        filter_surface = filters[2].selectbox("Filter surface", options=["all"] + sorted(report.get("surfaces", [])), index=0, key="matrix_filter_surface")
+        filter_status = filters[3].selectbox("Filter status", options=["all", "pass", "soft_fail", "hard_fail"], index=0, key="matrix_filter_status")
+
+        filtered_rows = []
+        for row in results:
+            if filter_model != "all" and row["model"] != filter_model:
+                continue
+            if filter_profile != "all" and row["profile"] != filter_profile:
+                continue
+            if filter_surface != "all" and row["surface"] != filter_surface:
+                continue
+            if filter_status != "all" and row["grade"]["overall"] != filter_status:
+                continue
+            filtered_rows.append(
+                {
+                    "scenario": row["scenarioId"],
+                    "model": row["model"],
+                    "profile": row["profile"],
+                    "surface": row["surface"],
+                    "status": row["grade"]["overall"],
+                    "score": f"{row['grade']['score']}/{row['grade']['maxScore']}",
+                    "tools": ", ".join(row["summary"].get("tools", [])),
+                    "state": row["summary"].get("state"),
+                    "latencyMs": row["summary"].get("latencyMs"),
+                }
+            )
+        st.dataframe(filtered_rows or [{"scenario": "none", "status": "n/a"}], use_container_width=True, hide_index=True)
+
+        axis_rows = []
+        for key, bucket in sorted(report.get("aggregate", {}).get("byModelProfileSurface", {}).items()):
+            axis_rows.append(
+                {
+                    "axis": key,
+                    "runs": bucket.get("runs"),
+                    "passRate": _format_ratio(bucket.get("passRate")),
+                    "avgScore": _format_ratio(bucket.get("avgScore")),
+                    "hardFails": bucket.get("hard_fail"),
+                }
+            )
+        if axis_rows:
+            st.caption("Axis summary")
+            st.dataframe(axis_rows, use_container_width=True, hide_index=True)
+
+        compare_options = [report_id for report_id in report_ids if report_id != selected_report_id]
+        compare_cols = st.columns([1.6, 1])
+        compare_choice = compare_cols[0].selectbox(
+            "Compare against",
+            options=["none"] + compare_options,
+            key="matrix_compare_report_id",
+        )
+        if compare_cols[1].button("Run Compare", use_container_width=True, disabled=compare_choice == "none"):
+            st.session_state["matrix_compare_payload"] = client.matrix_compare(selected_report_id, compare_choice)
+            st.rerun()
+
+        comparison = st.session_state.get("matrix_compare_payload")
+        if comparison and compare_choice != "none":
+            st.caption("Comparison summary")
+            st.json(comparison["summary"])
+            st.dataframe(comparison["byModel"], use_container_width=True, hide_index=True)
+
+
 def render_status_panels(client: BackendClient) -> None:
     tabs = st.tabs(["Timeline", "Approvals", "Clarification", "Files", "RAG", "Terminal", "Matrix"])
     with tabs[0]:
@@ -516,7 +695,7 @@ def render_status_panels(client: BackendClient) -> None:
     with tabs[5]:
         st.info("Interactive terminal UI waits on the Python terminal runtime surfaces.")
     with tabs[6]:
-        st.info("Matrix Lab moves in phase 5. This tab remains reserved to preserve the product layout.")
+        render_matrix_panel(client)
 
 
 def inject_css() -> None:
