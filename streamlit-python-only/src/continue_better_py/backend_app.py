@@ -77,6 +77,24 @@ def _resolve_in_workspace(workspace_root: Path, relative_path: str) -> Path:
     return resolved
 
 
+def _resolve_in_allowed_roots(raw_path: str, roots: list[Path]) -> Path:
+    candidates = [root.resolve() for root in roots]
+    value = str(raw_path or "").strip()
+    if not value:
+        raise HTTPException(status_code=400, detail="Path is required")
+    requested = Path(value)
+    if requested.is_absolute():
+        resolved = requested.resolve()
+        if any(resolved == root or root in resolved.parents for root in candidates):
+            return resolved
+        raise HTTPException(status_code=400, detail="Path escapes allowed roots")
+    primary = candidates[0]
+    resolved = primary.joinpath(value).resolve()
+    if resolved != primary and primary not in resolved.parents:
+        raise HTTPException(status_code=400, detail="Path escapes workspace root")
+    return resolved
+
+
 def _build_tree(root: Path) -> dict[str, Any]:
     def walk(directory: Path) -> list[dict[str, Any]]:
         children: list[dict[str, Any]] = []
@@ -451,7 +469,7 @@ def create_backend_app(
 
     @app.post("/v1/rag/session/{session_id}/files/import")
     async def rag_import_session_file(session_id: str, request: RagImportRequest) -> dict[str, Any]:
-        target = _resolve_in_workspace(settings.resolved_workspace_root, request.path)
+        target = _resolve_in_allowed_roots(request.path, [settings.resolved_workspace_root, settings.project_root])
         if not target.exists() or not target.is_file():
             raise HTTPException(status_code=404, detail="Source file not found in workspace")
         async with sidecar_client(timeout=60.0) as client:
@@ -462,7 +480,7 @@ def create_backend_app(
 
     @app.post("/v1/rag/profiles/{profile_name}/files/import")
     async def rag_import_profile_file(profile_name: str, request: RagImportRequest) -> dict[str, Any]:
-        target = _resolve_in_workspace(settings.resolved_workspace_root, request.path)
+        target = _resolve_in_allowed_roots(request.path, [settings.resolved_workspace_root, settings.project_root])
         if not target.exists() or not target.is_file():
             raise HTTPException(status_code=404, detail="Source file not found in workspace")
         async with sidecar_client(timeout=60.0) as client:

@@ -67,10 +67,10 @@
 - backend and sidecar now expose local CORS-compatible terminal endpoints for the Streamlit custom terminal component
 - Streamlit terminal tab now includes a custom interactive terminal surface instead of a static event-only view
 - real capability evaluation script added at `scripts/evaluate_capabilities.py`
-- live capability evaluation against OpenRouter/Gemini currently passes 2 out of 3 tasks:
+- live capability evaluation against OpenRouter/Gemini now passes 3 out of 3 tasks:
   - `terminal_single_shot`: pass
   - `approval_write_file`: pass
-  - `interactive_terminal`: timeout with the real model
+  - `interactive_terminal`: pass
 - JS-style orchestration controls now applied in Python:
   - policy profile
   - tool toggles
@@ -85,8 +85,11 @@
 
 - optional future enhancements stay regression-free
 - Thales-specific live validation can be rerun when credentials are available on this machine
-- interactive terminal live prompting should be improved until `scripts/evaluate_capabilities.py` is fully green
 - remaining JS parity gaps are now concentrated in richer UI polish and advanced run-control behaviors, not the basic runtime contract
+- targeted Matrix parity should keep improving on:
+  - web final-answer/source formatting
+  - terminal sequential final-answer contract quality
+  - multi-turn RAG answer quality on backend relay
 
 ## Update Log
 
@@ -165,3 +168,23 @@
   - pass: `terminal_single_shot`
   - pass: `approval_write_file`
   - fail: `interactive_terminal` still times out under the real model
+- moved LangGraph invocation off the main async path with periodic runtime heartbeats so long multi-step runs keep SSE alive
+- added a stronger JS-style runtime system prompt and terminal/tool playbook guidance
+- corrected backend RAG imports to accept allowed absolute project paths, and updated Matrix prep to send resolved paths
+- aligned approval policy behavior with the JS contract:
+  - `always_allow`: never ask
+  - `always_ask`: always ask
+  - `ask_when_necessary`: ask for anything not `safe`
+- added early clarification heuristics for broad product and ambiguous bugfix prompts before model execution
+- verified `pytest -q` across the full Python subtree after the latest parity pass: `39 passed`
+- reran `python scripts/evaluate_capabilities.py` live:
+  - pass: `terminal_single_shot`
+  - pass: `interactive_terminal`
+  - pass: `approval_write_file`
+- reran a targeted live Matrix slice on `backend_relay` with Gemini:
+  - pass: `clarification_food_app`
+  - pass: `read_file_phase_status`
+  - hard fail: `web_latest_with_sources`
+  - hard fail: `terminal_sequential_inspect`
+  - hard fail: `rag_session_docs_multiturn_backend`
+- latest Matrix signal is now product-quality related, not infrastructure-related: the previous RAG import 404 is fixed

@@ -7,7 +7,7 @@ import httpx
 import mongomock
 from fastapi.testclient import TestClient
 
-from continue_better_py.backend_app import create_backend_app
+from continue_better_py.backend_app import _resolve_in_allowed_roots, create_backend_app
 from continue_better_py.matrix import MatrixService
 from continue_better_py.store import MongoStore
 
@@ -36,6 +36,19 @@ def build_test_client(tmp_path, handler, matrix_service: MatrixService | None = 
     store.settings.workspace_root = str(workspace)
     transport = httpx.MockTransport(handler)
     return TestClient(create_backend_app(store=store, sidecar_transport=transport, sidecar_base_url="http://sidecar.test", matrix_service=matrix_service)), store
+
+
+def test_resolve_in_allowed_roots_accepts_project_absolute_path(tmp_path):
+    workspace = tmp_path.joinpath("workspace")
+    project = tmp_path.joinpath("project")
+    workspace.mkdir(parents=True, exist_ok=True)
+    project.mkdir(parents=True, exist_ok=True)
+    target = project.joinpath("matrix_fixtures", "fixture.txt")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("fixture", encoding="utf-8")
+
+    resolved = _resolve_in_allowed_roots(str(target), [workspace, project])
+    assert resolved == target.resolve()
 
 
 def test_backend_session_crud_and_run_queries(tmp_path):

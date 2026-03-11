@@ -56,6 +56,9 @@ class ToolRegistry:
     def enabled_tools(self) -> list[StructuredTool]:
         return [tool.tool for tool in self._tools if tool.enabled]
 
+    def enabled_tool_names(self) -> list[str]:
+        return [tool.name for tool in self._tools if tool.enabled]
+
     def module_payloads(self) -> list[dict]:
         payloads = []
         for module in self._modules:

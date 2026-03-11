@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, TypedDict
@@ -104,6 +105,102 @@ def forced_tool_instruction(mode: str | None) -> str | None:
         return "The user explicitly requested Apps mode for this run. Prefer open_file, open_url, or open_resource when relevant."
     if mode == "clarification":
         return "The user explicitly requested clarification mode for this run. Use request_clarification before proceeding unless the request is already fully specified."
+    return None
+
+
+def forced_tool_group(mode: str | None) -> str | None:
+    return {
+        "rag": "rag",
+        "web": "web",
+        "apps": "app_actions",
+        "clarification": "clarification",
+    }.get(str(mode or "").strip().lower())
+
+
+def build_runtime_system_prompt(registry: ToolRegistry, selected_group: str | None = None) -> str:
+    tool_names = registry.enabled_tool_names()
+    available_tools = ", ".join(tool_names) if tool_names else "(none)"
+    prompt_parts = [
+        "You are a coding assistant running inside a local tool-enabled runtime.",
+        "You know general coding knowledge and reasoning without tools.",
+        "Use tools whenever they help complete the task better, safer, or with more accuracy.",
+        "Choose the tool that matches the user's exact intent. Opening a file or URL is different from reading it; reading is different from editing; local knowledge is different from current external facts.",
+        "Distinguish between actions executed in the current run and events recalled from earlier conversation or retrieved memory.",
+        f"Available tools for this turn: {available_tools}.",
+        (
+            f"Current active parent tool group: {selected_group}. Prioritize tools from this group first; if they are insufficient, explain what is missing."
+            if selected_group
+            else "No parent tool group is pre-selected for this run."
+        ),
+        "Map the user's intent to the most direct tool: open/show a URL or file -> open_url/open_file; read file contents -> read_file; create or edit files -> write_file; current external facts -> web_search; local grounded retrieval -> rag_lookup; shell or repo inspection -> run_terminal.",
+        "Prefer a dedicated tool over terminal improvisation when a dedicated tool already fits the request.",
+        "If the user explicitly asks for an interactive terminal workflow, prefer open_terminal, terminal_write, terminal_wait_for_output, and terminal_close over run_terminal.",
+        "For terminal work, prefer one command at a time. Do not use shell chaining or substitution operators. Inspect output, then decide the next command.",
+        "Avoid interactive editors such as vim or nano. Use write_file instead for code changes.",
+        "request_clarification is the default clarification mechanism for under-specified tasks. Use it only when a missing detail blocks useful execution or would force an arbitrary choice between several plausible actions.",
+        "If you use request_clarification, do not duplicate the same clarification in normal assistant text.",
+        "When the user asks to remember or store a session fact, use session_memory_upsert.",
+        "When rag_lookup returns hits, include a Sources section with path:line citations.",
+        "Never return raw tool-call JSON as a final answer.",
+        "Never claim an action was completed unless the corresponding tool call actually succeeded.",
+        "Once you have enough evidence, stop tool use and provide the final answer.",
+    ]
+    return " ".join(part for part in prompt_parts if part)
+
+
+def should_request_approval(policy_profile: str, risk_level: str) -> bool:
+    normalized_policy = str(policy_profile or "ask_when_necessary").strip().lower()
+    normalized_risk = str(risk_level or "risky").strip().lower()
+    if normalized_policy == "always_allow":
+        return False
+    if normalized_policy == "always_ask":
+        return True
+    return normalized_risk != "safe"
+
+
+def build_early_clarification(last_user_message: str, clarification_enabled: bool) -> dict[str, Any] | None:
+    if not clarification_enabled:
+        return None
+    prompt = str(last_user_message or "").strip()
+    if not prompt:
+        return None
+    normalized = prompt.lower()
+    if any(token in normalized for token in ["hello", "hi", "hey", "salut", "bonjour", "/help", "what can you do", "capabilities"]):
+        return None
+    has_file_like_hint = bool(re.search(r"[./\\][\w.-]+|\b\w+\.(ts|tsx|js|jsx|py|md|json|txt|yaml|yml|sh)\b", prompt, flags=re.IGNORECASE))
+    has_url_hint = bool(re.search(r"https?://\S+|file://\S+", prompt, flags=re.IGNORECASE))
+    word_count = len([item for item in prompt.split() if item.strip()])
+    if re.search(r"\b(fix|bug|debug|issue|erreur|corrige|répare)\b", normalized, flags=re.IGNORECASE):
+        has_target = has_file_like_hint or any(token in normalized for token in ["file", "fichier", "component", "composant"])
+        has_symptom = any(token in normalized for token in ["line", "ligne", "error", "message", "missing", "expected", "behavior", "comportement"])
+        if not (has_target and has_symptom):
+            return {
+                "reason": "bugfix_needs_symptom",
+                "questions": [
+                    "Which file or component is affected by the bug?",
+                    "What is the exact symptom or expected behavior?",
+                ],
+            }
+    if re.search(r"\b(create|build|make)\b", normalized, flags=re.IGNORECASE) and re.search(
+        r"\b(app|application|website|site|platform|tool|dashboard)\b", normalized,
+        flags=re.IGNORECASE,
+    ):
+        if not has_file_like_hint and not has_url_hint:
+            return {
+                "reason": "broad_product_request",
+                "questions": [
+                    "What kind of app do you want exactly: mobile app, web app, or something else?",
+                    "What is the first concrete feature or screen you want me to work on?",
+                ],
+            }
+    if word_count <= 3 and not has_file_like_hint and not has_url_hint:
+        return {
+            "reason": "ambiguous_goal",
+            "questions": [
+                "What exact goal do you want: fix a bug, create a file, run a command, or explain something?",
+                "If this concerns a specific file or component, which one?",
+            ],
+        }
     return None
 
 
@@ -351,7 +448,7 @@ class RuntimeEngine:
                         "options": options,
                     }
                     break
-                if registered.risk_level == "risky" and state["policy_profile"] != "always_allow":
+                if should_request_approval(state["policy_profile"], registered.risk_level):
                     pending_approval = {
                         "approvalId": str(uuid.uuid4()),
                         "runId": state["run_id"],
@@ -416,6 +513,47 @@ class RuntimeEngine:
             "tool_events": [],
         }
 
+    def _last_user_message(self, messages: list[BaseMessage]) -> str:
+        for message in reversed(messages):
+            if isinstance(message, HumanMessage):
+                return str(message.content or "")
+        return ""
+
+    async def _run_graph_with_heartbeats(self, run_id: str, state: AgentState, detail: str | None = None):
+        loop = asyncio.get_running_loop()
+        result_holder: dict[str, Any] = {}
+        completed = asyncio.Event()
+
+        def invoke_graph() -> None:
+            try:
+                result_holder["result"] = self.graph.invoke(state)
+            except Exception as exc:  # pragma: no cover - exercised via public stream methods
+                result_holder["error"] = exc
+            finally:
+                loop.call_soon_threadsafe(completed.set)
+
+        worker = asyncio.create_task(asyncio.to_thread(invoke_graph))
+        heartbeat_count = 0
+        try:
+            while True:
+                try:
+                    await asyncio.wait_for(completed.wait(), timeout=10.0)
+                    break
+                except asyncio.TimeoutError:
+                    heartbeat_count += 1
+                    suffix = f" while {detail}" if detail else ""
+                    yield run_diagnostic(
+                        run_id,
+                        "runtime_heartbeat",
+                        f"Run still in progress{suffix} ({heartbeat_count * 10}s elapsed).",
+                    )
+        finally:
+            await worker
+
+        if "error" in result_holder:
+            raise result_holder["error"]
+        yield {"type": "_graph_result", "result": result_holder["result"]}
+
     def _serialize_snapshot(self, state: AgentState) -> dict[str, Any]:
         return {
             "run_id": state["run_id"],
@@ -454,18 +592,61 @@ class RuntimeEngine:
     async def stream_chat(self, request: SidecarChatRequest, messages: list[BaseMessage]):
         run_id = request.runId or str(uuid.uuid4())
         state = self._initial_state(request, run_id, messages)
+        registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"], state.get("tool_toggles"))
+        system_prompt = build_runtime_system_prompt(registry, selected_group=forced_tool_group(request.forceToolUse))
+        state["messages"] = [SystemMessage(content=system_prompt)] + list(state["messages"])
         force_instruction = forced_tool_instruction(request.forceToolUse)
         if force_instruction:
             state["messages"] = [SystemMessage(content=force_instruction)] + list(state["messages"])
         yield run_state(run_id, "running")
+        await asyncio.sleep(0)
         yield run_phase(run_id, "planning")
+        await asyncio.sleep(0)
         yield run_phase(run_id, "execute")
+        await asyncio.sleep(0)
         yield run_diagnostic(run_id, "provider_mode", f"Provider mode: {state['provider_mode']}.")
+        await asyncio.sleep(0)
         yield run_diagnostic(run_id, "tool_routing_mode", "Tool selection is performed in the main model turn (single-pass).")
+        clarification_enabled = bool((state.get("tool_toggles") or {}).get("clarification", True))
+        early_clarification = build_early_clarification(self._last_user_message(state["messages"]), clarification_enabled)
+        if early_clarification:
+            clarification_id = str(uuid.uuid4())
+            state["pending_clarification"] = {
+                "clarificationId": clarification_id,
+                "runId": run_id,
+                "question": early_clarification["questions"][0],
+                "questions": early_clarification["questions"],
+                "options": [],
+                "reason": early_clarification["reason"],
+            }
+            state["tool_events"] = [
+                run_diagnostic(run_id, "clarification_needed", f"Clarification requested: {early_clarification['reason']}"),
+                {
+                    "type": "tool_call",
+                    "runId": run_id,
+                    "actionId": clarification_id,
+                    "name": "request_clarification",
+                    "arguments": json.dumps({"question": early_clarification["questions"][0]}, ensure_ascii=False),
+                    "riskLevel": "safe",
+                },
+            ]
+            async for event in self._stream_result(run_id, state):
+                yield event
+            return
         try:
-            result = self.graph.invoke(state)
+            result = None
+            async for event in self._run_graph_with_heartbeats(run_id, state, detail="executing the tool plan"):
+                if event.get("type") == "_graph_result":
+                    result = event["result"]
+                    continue
+                yield event
         except Exception as exc:
             yield error_event(str(exc))
+            yield run_state(run_id, "failed")
+            yield done()
+            return
+        if result is None:
+            yield error_event("Runtime finished without a graph result.")
             yield run_state(run_id, "failed")
             yield done()
             return
@@ -509,9 +690,19 @@ class RuntimeEngine:
         yield run_state(run_id, "running")
         yield run_phase(run_id, "repair")
         try:
-            result = self.graph.invoke(state)
+            result = None
+            async for event in self._run_graph_with_heartbeats(run_id, state, detail="repairing after approval"):
+                if event.get("type") == "_graph_result":
+                    result = event["result"]
+                    continue
+                yield event
         except Exception as exc:
             yield error_event(str(exc))
+            yield run_state(run_id, "failed")
+            yield done()
+            return
+        if result is None:
+            yield error_event("Runtime finished without a graph result.")
             yield run_state(run_id, "failed")
             yield done()
             return
@@ -531,9 +722,19 @@ class RuntimeEngine:
         yield run_state(run_id, "running")
         yield run_phase(run_id, "execute", detail="Clarification received")
         try:
-            result = self.graph.invoke(state)
+            result = None
+            async for event in self._run_graph_with_heartbeats(run_id, state, detail="continuing after clarification"):
+                if event.get("type") == "_graph_result":
+                    result = event["result"]
+                    continue
+                yield event
         except Exception as exc:
             yield error_event(str(exc))
+            yield run_state(run_id, "failed")
+            yield done()
+            return
+        if result is None:
+            yield error_event("Runtime finished without a graph result.")
             yield run_state(run_id, "failed")
             yield done()
             return

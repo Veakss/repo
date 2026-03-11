@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 import pytest
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
 from continue_better_py.run_state import RunStateStore
 from continue_better_py.runtime import RuntimeDependencies, RuntimeEngine
@@ -18,8 +19,9 @@ class FakeProvider:
 
 
 class FakeModel:
-    def __init__(self, responses: list[AIMessage]) -> None:
+    def __init__(self, responses: list[AIMessage], delay_sec: float = 0.0) -> None:
         self.responses = responses
+        self.delay_sec = delay_sec
         self.invocations: list[list[BaseMessage]] = []
         self.bound_tool_names: list[str] = []
 
@@ -29,6 +31,8 @@ class FakeModel:
 
     def invoke(self, messages: list[BaseMessage]):
         self.invocations.append(messages)
+        if self.delay_sec > 0:
+            time.sleep(self.delay_sec)
         if not self.responses:
             raise AssertionError("No fake response left")
         return self.responses.pop(0)
@@ -236,3 +240,81 @@ async def test_runtime_injects_forced_rag_instruction(tmp_path: Path):
     )
     _ = [event async for event in runtime.stream_chat(request, [AIMessage(content="ignored")])]
     assert any(isinstance(message, SystemMessage) and "must use rag_lookup" in message.content for message in model.invocations[0])
+
+
+@pytest.mark.anyio
+async def test_runtime_injects_base_system_prompt(tmp_path: Path):
+    model = FakeModel([AIMessage(content="Prompted.")])
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(
+        sessionId="s1",
+        messages=[ChatMessage(role="user", content="Use the interactive terminal to run pwd")],
+        workspaceRoot=str(tmp_path),
+    )
+    _ = [event async for event in runtime.stream_chat(request, [AIMessage(content="ignored")])]
+    system_messages = [message.content for message in model.invocations[0] if isinstance(message, SystemMessage)]
+    joined = "\n".join(system_messages)
+    assert "local tool-enabled runtime" in joined
+    assert "interactive terminal workflow" in joined
+    assert "Never return raw tool-call JSON as a final answer." in joined
+
+
+@pytest.mark.anyio
+async def test_runtime_emits_heartbeat_for_slow_runs(tmp_path: Path):
+    model = FakeModel([AIMessage(content="Completed after delay.")], delay_sec=10.2)
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(
+        sessionId="s1",
+        messages=[ChatMessage(role="user", content="say hi")],
+        workspaceRoot=str(tmp_path),
+    )
+    events = [event async for event in runtime.stream_chat(request, [AIMessage(content="ignored")])]
+    assert any(event["type"] == "run_diagnostic" and event["code"] == "runtime_heartbeat" for event in events)
+    assert any(event["type"] == "run_state" and event["state"] == "completed" for event in events)
+
+
+@pytest.mark.anyio
+async def test_runtime_uses_early_clarification_for_broad_product_prompt(tmp_path: Path):
+    model = FakeModel([AIMessage(content="Should not be called.")])
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(
+        sessionId="s1",
+        messages=[ChatMessage(role="user", content="Help me create a food application.")],
+        workspaceRoot=str(tmp_path),
+        toolToggles={"clarification": True},
+    )
+    events = [event async for event in runtime.stream_chat(request, [HumanMessage(content="Help me create a food application.")])]
+    assert model.invocations == []
+    assert any(event["type"] == "tool_call" and event["name"] == "request_clarification" for event in events)
+    assert any(event["type"] == "clarification_required" for event in events)
+    assert any(event["type"] == "run_state" and event["state"] == "awaiting_clarification" for event in events)
+
+
+@pytest.mark.anyio
+async def test_runtime_ask_when_necessary_requests_approval_for_moderate_tools(tmp_path: Path):
+    model = FakeModel([AIMessage(content="", tool_calls=[{"id": "call-1", "name": "open_terminal", "args": {"cwd": "."}}])])
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(
+        sessionId="s1",
+        messages=[ChatMessage(role="user", content="open a terminal")],
+        workspaceRoot=str(tmp_path),
+        policyProfile="ask_when_necessary",
+        toolToggles={"clarification": False},
+    )
+    events = [event async for event in runtime.stream_chat(request, [HumanMessage(content="open a terminal")])]
+    assert any(event["type"] == "approval_required" and event["name"] == "open_terminal" for event in events)
+
+
+@pytest.mark.anyio
+async def test_runtime_always_ask_requests_approval_for_safe_tools(tmp_path: Path):
+    model = FakeModel([AIMessage(content="", tool_calls=[{"id": "call-1", "name": "read_file", "args": {"path": "notes.txt"}}])])
+    tmp_path.joinpath("notes.txt").write_text("hello", encoding="utf-8")
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(
+        sessionId="s1",
+        messages=[ChatMessage(role="user", content="read notes.txt")],
+        workspaceRoot=str(tmp_path),
+        policyProfile="always_ask",
+    )
+    events = [event async for event in runtime.stream_chat(request, [HumanMessage(content="read notes.txt")])]
+    assert any(event["type"] == "approval_required" and event["name"] == "read_file" for event in events)

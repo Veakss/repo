@@ -95,8 +95,9 @@ def test_sidecar_approval_resume_endpoint_returns_stream(tmp_path: Path):
         "/v1/chat/stream",
         json={
             "sessionId": "s1",
-            "messages": [ChatMessage(role="user", content="write").model_dump()],
+            "messages": [ChatMessage(role="user", content="write a.txt with hello").model_dump()],
             "workspaceRoot": str(tmp_path),
+            "toolToggles": {"clarification": False},
         },
     )
     approval_events = parse_sse_payloads(first.text)

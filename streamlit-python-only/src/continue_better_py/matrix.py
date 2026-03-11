@@ -861,7 +861,7 @@ class MatrixService:
             if not path.is_absolute():
                 path = Path(context.workspace_root).joinpath(path)
             if SURFACE_PRESETS[context.surface_id]["entrypoint"] == "backend":
-                import_payload = {"path": str(Path(raw_path))}
+                import_payload = {"path": str(path)}
                 with self._backend_client(timeout=60.0) as client:
                     response = client.post(f"/v1/rag/session/{context.session_id}/files/import", json=import_payload)
                     response.raise_for_status()

@@ -23,8 +23,11 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
    - keep terminal, Matrix, RAG, and provider probes green
    - preserve the current event contract used by the Streamlit shell
 2. Future work is now incremental rather than milestone-blocking:
-   - improve real-model reliability on the interactive terminal tool chain
    - keep closing UI gaps against the original JS shell
+   - improve targeted Matrix hard fails on live Gemini:
+     - `web_latest_with_sources`
+     - `terminal_sequential_inspect`
+     - `rag_session_docs_multiturn_backend`
    - deeper Thales live validation when credentials are available
    - UI refinements and performance polish
 3. Keep using the live verification scripts when changing contracts:
@@ -130,6 +133,20 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
 - `scripts/evaluate_capabilities.py` now runs three live capability tasks against the real model with per-task subprocess timeouts
 - latest live capability result on this Mac with OpenRouter/Gemini:
   - pass: `terminal_single_shot`
+  - pass: `interactive_terminal`
   - pass: `approval_write_file`
-  - fail: `interactive_terminal` timed out
 - latest parity pass also fixed a live sidecar/runtime signature mismatch that mocks did not catch; keep real backend+sidecar smokes in the loop when changing runtime factory signatures
+- runtime now emits periodic heartbeat diagnostics during long LangGraph turns so SSE stays alive during multi-step tool chains
+- backend RAG imports now accept allowed absolute paths inside the project, which fixed the previous live Matrix RAG prep failure on backend relay
+- approval policy parity improved:
+  - `always_allow`: never ask
+  - `always_ask`: always ask
+  - `ask_when_necessary`: approval for any non-`safe` tool
+- early clarification heuristics now exist for broad product prompts and ambiguous bugfix prompts, which fixed the live `clarification_food_app` Matrix scenario
+- latest targeted Matrix live slice on `backend_relay` with Gemini:
+  - pass: `clarification_food_app`
+  - pass: `read_file_phase_status`
+  - hard fail: `web_latest_with_sources`
+  - hard fail: `terminal_sequential_inspect`
+  - hard fail: `rag_session_docs_multiturn_backend`
+- the remaining Matrix failures are now answer-quality/contract issues, not backend plumbing failures
