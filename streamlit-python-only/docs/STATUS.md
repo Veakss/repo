@@ -76,6 +76,12 @@
   - tool toggles
   - forced modes via `/rag`, `/web`, `/apps`, `/clarify`
   - timeline filtering in the UI
+- Streamlit shell layout refined toward the JS app structure:
+  - dedicated session rail
+  - chat-first center column
+  - inspector column with explicit panel selection
+  - compact control header and stat cards
+  - cleaner timeline and terminal event cards with raw payloads hidden behind expanders
 
 ## In Progress
 
@@ -90,6 +96,10 @@
   - web final-answer/source formatting
   - terminal sequential final-answer contract quality
   - multi-turn RAG answer quality on backend relay
+- UI parity should keep improving on:
+  - denser, more polished component styling
+  - stronger visual hierarchy for session navigation vs chat vs inspector
+  - reducing remaining Streamlit-native rough edges
 
 ## Update Log
 
@@ -188,3 +198,7 @@
   - hard fail: `terminal_sequential_inspect`
   - hard fail: `rag_session_docs_multiturn_backend`
 - latest Matrix signal is now product-quality related, not infrastructure-related: the previous RAG import 404 is fixed
+- rebuilt the Streamlit shell around a 3-column layout instead of the default sidebar-heavy layout
+- moved timeline and terminal diagnostics to custom HTML surfaces with concise summaries and collapsible raw payloads
+- tightened the control header, capability pills, notice styling, and inspector navigation to reduce visual noise
+- verified `pytest -q` across the full Python subtree after the UI cleanup pass: `39 passed`

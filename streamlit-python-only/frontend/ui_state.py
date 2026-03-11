@@ -85,6 +85,38 @@ def format_event_label(event: dict[str, Any]) -> str:
     return event_type.replace("_", " ").title()
 
 
+def format_event_summary(event: dict[str, Any]) -> str:
+    event_type = str(event.get("type") or "")
+    if event_type == "run_state":
+        return str(event.get("state") or "unknown")
+    if event_type == "run_phase_changed":
+        return str(event.get("detail") or event.get("phase") or "")
+    if event_type == "approval_required":
+        return str(event.get("arguments") or "")
+    if event_type == "approval_decision":
+        return str(event.get("decision") or "")
+    if event_type == "clarification_required":
+        questions = event.get("questions") or []
+        if questions and isinstance(questions, list):
+            return " • ".join(str(item) for item in questions[:2])
+        return str(event.get("question") or "")
+    if event_type == "tool_call":
+        return str(event.get("arguments") or "")
+    if event_type == "tool_result":
+        return str(event.get("preview") or "")
+    if event_type == "run_diagnostic":
+        return str(event.get("message") or "")
+    if event_type in {"error", "terminal_error"}:
+        return str(event.get("error") or event.get("message") or "")
+    if event_type == "terminal_exit":
+        return f"exit={event.get('exitCode')}"
+    if event_type == "terminal_data":
+        return str(event.get("chunk") or "")
+    if event_type == "token":
+        return str(event.get("token") or "")
+    return json.dumps(event, ensure_ascii=False)
+
+
 def build_timeline_html(timeline: list[dict[str, Any]], filter_name: str = "all") -> str:
     if filter_name == "errors":
         selected = [event for event in timeline if event.get("type") in {"error", "terminal_error"} or (event.get("type") == "run_diagnostic" and event.get("level") in {"warn", "error"})]
@@ -112,6 +144,7 @@ def build_timeline_html(timeline: list[dict[str, Any]], filter_name: str = "all"
             tone = "success"
         label = html.escape(format_event_label(event))
         timestamp = html.escape(str(event.get("timestamp") or ""))
+        summary = html.escape(format_event_summary(event))
         payload = html.escape(json.dumps(event, ensure_ascii=False, indent=2))
         blocks.append(
             f"""
@@ -120,13 +153,84 @@ def build_timeline_html(timeline: list[dict[str, Any]], filter_name: str = "all"
                 <span>{label}</span>
                 <span>{timestamp}</span>
               </div>
-              <pre>{payload}</pre>
+              <div class="cb-timeline-summary">{summary}</div>
+              <details class="cb-timeline-details">
+                <summary>Event payload</summary>
+                <pre>{payload}</pre>
+              </details>
             </div>
             """
         )
     if not blocks:
         blocks.append('<div class="cb-empty-card">No run events yet.</div>')
-    return f'<div class="cb-timeline-wrap">{"".join(blocks)}</div>'
+    return f"""
+    <style>
+      body {{
+        margin: 0;
+        font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        color: #e8eff6;
+        background: transparent;
+      }}
+      .cb-timeline-wrap {{
+        display: grid;
+        gap: 12px;
+      }}
+      .cb-timeline-card, .cb-empty-card {{
+        background: rgba(13, 19, 28, 0.78);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 18px;
+        padding: 14px 16px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+      }}
+      .cb-timeline-head {{
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 12px;
+        color: rgba(233, 240, 247, 0.86);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }}
+      .cb-timeline-summary {{
+        font-size: 13px;
+        line-height: 1.5;
+        color: rgba(226, 234, 244, 0.92);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }}
+      .cb-timeline-details {{
+        margin-top: 10px;
+      }}
+      .cb-timeline-details summary {{
+        cursor: pointer;
+        color: rgba(132, 199, 255, 0.92);
+        font-size: 12px;
+      }}
+      .cb-timeline-card pre {{
+        margin: 8px 0 0 0;
+        padding: 10px 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 12px;
+        line-height: 1.5;
+        border-radius: 14px;
+        background: rgba(4, 8, 14, 0.76);
+        color: rgba(220, 231, 242, 0.84);
+      }}
+      .cb-tone-error {{
+        border-color: rgba(255, 106, 106, 0.4);
+      }}
+      .cb-tone-warn {{
+        border-color: rgba(255, 196, 87, 0.42);
+      }}
+      .cb-tone-success {{
+        border-color: rgba(88, 209, 142, 0.34);
+      }}
+    </style>
+    <div class="cb-timeline-wrap">{"".join(blocks)}</div>
+    """
 
 
 def build_terminal_html(timeline: list[dict[str, Any]]) -> str:
@@ -175,7 +279,55 @@ def build_terminal_html(timeline: list[dict[str, Any]]) -> str:
         )
     if not blocks:
         blocks.append('<div class="cb-empty-card">No terminal activity yet.</div>')
-    return f'<div class="cb-timeline-wrap">{"".join(blocks)}</div>'
+    return f"""
+    <style>
+      body {{
+        margin: 0;
+        font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        color: #e8eff6;
+        background: transparent;
+      }}
+      .cb-timeline-wrap {{
+        display: grid;
+        gap: 12px;
+      }}
+      .cb-timeline-card, .cb-empty-card {{
+        background: rgba(13, 19, 28, 0.78);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 18px;
+        padding: 14px 16px;
+      }}
+      .cb-timeline-head {{
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 12px;
+        color: rgba(233, 240, 247, 0.86);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }}
+      .cb-terminal-meta {{
+        font-size: 12px;
+        color: rgba(183, 198, 214, 0.76);
+        margin-bottom: 8px;
+      }}
+      .cb-timeline-card pre {{
+        margin: 0;
+        padding: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        border-radius: 14px;
+        background: rgba(4, 8, 14, 0.76);
+        color: rgba(220, 231, 242, 0.84);
+      }}
+    </style>
+    <div class="cb-timeline-wrap">{"".join(blocks)}</div>
+    """
 
 
 def build_terminal_component_html(

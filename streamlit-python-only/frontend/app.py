@@ -90,6 +90,7 @@ def ensure_state() -> None:
         "tool_toggle_rag": True,
         "tool_toggle_apps": True,
         "tool_toggle_clarification": True,
+        "inspector_panel": "Run",
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -143,6 +144,10 @@ def refresh_session_state(client: BackendClient, session_id: str | None) -> None
     approvals, clarification = derive_pending_items(timeline)
     st.session_state["pending_approvals"] = approvals
     st.session_state["pending_clarification"] = clarification
+    if clarification:
+        st.session_state["inspector_panel"] = "Clarification"
+    elif approvals:
+        st.session_state["inspector_panel"] = "Approvals"
 
 
 def refresh_files(client: BackendClient) -> None:
@@ -179,6 +184,12 @@ def consume_events(client: BackendClient, session_id: str, events: list[dict[str
     approvals, clarification = derive_pending_items(st.session_state["timeline"])
     st.session_state["pending_approvals"] = approvals
     st.session_state["pending_clarification"] = clarification
+    if clarification:
+        st.session_state["inspector_panel"] = "Clarification"
+    elif approvals:
+        st.session_state["inspector_panel"] = "Approvals"
+    elif any(event.get("type") == "terminal_opened" for event in events):
+        st.session_state["inspector_panel"] = "Terminal"
     for event in reversed(events):
         run_id = event.get("runId")
         if isinstance(run_id, str) and run_id:
@@ -299,18 +310,51 @@ def respond_to_clarification(client: BackendClient, clarification_id: str, answe
     set_status(message="Clarification sent")
 
 
-def render_session_sidebar(client: BackendClient) -> None:
-    st.sidebar.title("Continue Better")
-    st.sidebar.caption("Python rewrite")
-    st.sidebar.text_input("Backend URL", key="backend_url")
-    left, right = st.sidebar.columns(2)
+def _shorten(value: str | None, limit: int = 24) -> str:
+    text = str(value or "none")
+    return text if len(text) <= limit else f"{text[:limit-1]}…"
+
+
+def render_notice() -> None:
+    status_message = st.session_state.get("status_message")
+    ui_error = st.session_state.get("ui_error")
+    if status_message:
+        st.markdown(f'<div class="cb-notice cb-notice-success">{status_message}</div>', unsafe_allow_html=True)
+    if ui_error:
+        st.markdown(f'<div class="cb-notice cb-notice-error">{ui_error}</div>', unsafe_allow_html=True)
+
+
+def render_shell_stats() -> None:
+    cards = [
+        ("Session", _shorten(st.session_state.get("session_id"))),
+        ("Active Run", _shorten(st.session_state.get("active_run_id"))),
+        ("Approvals", str(len(st.session_state["pending_approvals"]))),
+        ("Clarification", "open" if st.session_state["pending_clarification"] else "none"),
+    ]
+    html_cards = "".join(
+        f"""
+        <div class="cb-stat-card">
+          <span class="cb-stat-label">{label}</span>
+          <span class="cb-stat-value">{value}</span>
+        </div>
+        """
+        for label, value in cards
+    )
+    st.markdown(f'<div class="cb-stat-grid">{html_cards}</div>', unsafe_allow_html=True)
+
+
+def render_session_rail(client: BackendClient) -> None:
+    st.markdown("### Continue Better")
+    st.caption("Python rewrite")
+    st.text_input("Backend URL", key="backend_url")
+    left, right = st.columns(2)
     if left.button("Refresh", use_container_width=True):
         bootstrap(get_client())
         set_status(message="Backend refreshed")
     if right.button("New Session", use_container_width=True):
         create_session(client)
 
-    with st.sidebar.expander("Session Actions", expanded=True):
+    with st.expander("Session Actions", expanded=True):
         selected = st.session_state["session_id"]
         sessions = st.session_state["sessions"]
         current = next((session for session in sessions if session["id"] == selected), None)
@@ -330,12 +374,12 @@ def render_session_sidebar(client: BackendClient) -> None:
             refresh_rag_state(client)
             set_status(message="Session deleted")
 
-    st.sidebar.markdown("### Sessions")
+    st.markdown("#### Sessions")
     for session in st.session_state["sessions"]:
         selected = session["id"] == st.session_state["session_id"]
-        label = f"{'●' if selected else '○'} {session['title']}"
-        help_text = f"Messages: {session.get('message_count', 0)}"
-        if st.sidebar.button(label, key=f"session-{session['id']}", use_container_width=True, help=help_text):
+        message_count = session.get("message_count", 0)
+        label = f"{session['title']}\n{message_count} messages"
+        if st.button(label, key=f"session-{session['id']}", use_container_width=True, type="primary" if selected else "secondary"):
             st.session_state["session_id"] = session["id"]
             refresh_session_state(client, session["id"])
             refresh_files(client)
@@ -349,13 +393,14 @@ def render_header() -> None:
     if st.session_state["selected_model"] not in model_labels:
         st.session_state["selected_model"] = model_labels[0]
 
-    title_col, meta_col = st.columns([2.0, 1.4])
+    title_col, meta_col = st.columns([1.5, 1.1], gap="large")
     with title_col:
         st.title("Continue Better")
-        st.caption("Streamlit control plane with JS-parity run controls")
+        st.caption("Python control plane with a cleaner shell and JS-parity runtime controls")
     with meta_col:
-        st.selectbox("Model", options=model_labels, key="selected_model")
-        st.selectbox(
+        control_a, control_b = st.columns(2)
+        control_a.selectbox("Model", options=model_labels, key="selected_model")
+        control_b.selectbox(
             "Policy",
             options=["ask_when_necessary", "always_ask", "always_allow"],
             key="policy_profile",
@@ -374,13 +419,12 @@ def render_header() -> None:
             badges.append("Terminal")
         if capabilities.get("clarification"):
             badges.append("Clarification")
-        st.caption(" | ".join(badges) or "No capabilities reported")
+        st.markdown(
+            f'<div class="cb-capability-row">{"".join(f"<span class=\"cb-capability-pill\">{badge}</span>" for badge in badges) or "<span class=\"cb-capability-pill\">No capabilities</span>"}</div>',
+            unsafe_allow_html=True,
+        )
 
-    metrics = st.columns(4)
-    metrics[0].metric("Session", st.session_state["session_id"] or "none")
-    metrics[1].metric("Active Run", st.session_state["active_run_id"] or "none")
-    metrics[2].metric("Pending Approvals", len(st.session_state["pending_approvals"]))
-    metrics[3].metric("Pending Clarification", "yes" if st.session_state["pending_clarification"] else "no")
+    render_shell_stats()
 
     control_cols = st.columns([1.1, 1.1, 1.1, 1.1, 1.2])
     control_cols[0].checkbox("Web", key="tool_toggle_web", value=st.session_state["tool_toggles"]["webSearch"])
@@ -403,6 +447,7 @@ def render_header() -> None:
 
 
 def render_chat_panel(client: BackendClient) -> None:
+    st.markdown("#### Conversation")
     for message in st.session_state["messages"]:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -416,7 +461,11 @@ def render_chat_panel(client: BackendClient) -> None:
 
 
 def render_timeline_panel() -> None:
-    st.markdown(build_timeline_html(st.session_state["timeline"], st.session_state.get("timeline_filter", "all")), unsafe_allow_html=True)
+    components.html(
+        build_timeline_html(st.session_state["timeline"], st.session_state.get("timeline_filter", "all")),
+        height=720,
+        scrolling=True,
+    )
 
 
 def render_approvals_panel(client: BackendClient) -> None:
@@ -617,7 +666,7 @@ def render_terminal_panel() -> None:
         scrolling=False,
     )
     st.markdown("##### Recent Terminal Events")
-    st.markdown(build_terminal_html(timeline), unsafe_allow_html=True)
+    components.html(build_terminal_html(timeline), height=320, scrolling=True)
 
 
 def _format_ratio(value: float | None) -> str:
@@ -764,20 +813,27 @@ def render_matrix_panel(client: BackendClient) -> None:
 
 
 def render_status_panels(client: BackendClient) -> None:
-    tabs = st.tabs(["Timeline", "Approvals", "Clarification", "Files", "RAG", "Terminal", "Matrix"])
-    with tabs[0]:
+    st.markdown("#### Inspector")
+    panel = st.radio(
+        "Inspector panel",
+        options=["Run", "Approvals", "Clarification", "Files", "RAG", "Terminal", "Matrix"],
+        key="inspector_panel",
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    if panel == "Run":
         render_timeline_panel()
-    with tabs[1]:
+    elif panel == "Approvals":
         render_approvals_panel(client)
-    with tabs[2]:
+    elif panel == "Clarification":
         render_clarification_panel(client)
-    with tabs[3]:
+    elif panel == "Files":
         render_files_panel(client)
-    with tabs[4]:
+    elif panel == "RAG":
         render_rag_panel(client)
-    with tabs[5]:
+    elif panel == "Terminal":
         render_terminal_panel()
-    with tabs[6]:
+    elif panel == "Matrix":
         render_matrix_panel(client)
 
 
@@ -785,63 +841,176 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+        :root {
+            --cb-bg-0: #071019;
+            --cb-bg-1: rgba(10, 18, 28, 0.88);
+            --cb-bg-2: rgba(14, 22, 34, 0.76);
+            --cb-border: rgba(255,255,255,0.08);
+            --cb-text: #ecf2f8;
+            --cb-muted: rgba(197, 209, 223, 0.72);
+            --cb-accent: #7ecbff;
+            --cb-accent-soft: rgba(126, 203, 255, 0.16);
+            --cb-success: #72d39b;
+            --cb-danger: #ff7c7c;
+        }
         .stApp {
             background:
-                radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 28%),
-                radial-gradient(circle at bottom right, rgba(126, 231, 135, 0.08), transparent 20%),
-                linear-gradient(180deg, #09111b, #111926 48%, #141e2a);
-            color: #e9eef6;
+                radial-gradient(circle at top left, rgba(126, 203, 255, 0.08), transparent 24%),
+                radial-gradient(circle at bottom right, rgba(114, 211, 155, 0.06), transparent 18%),
+                linear-gradient(180deg, #071019 0%, #0a1220 56%, #0d1622 100%);
+            color: var(--cb-text);
+            font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
         }
-        [data-testid="stSidebar"] {
-            background: rgba(13, 20, 29, 0.78);
-            border-right: 1px solid rgba(255,255,255,0.08);
-            backdrop-filter: blur(14px);
+        [data-testid="stSidebar"],
+        [data-testid="collapsedControl"],
+        header[data-testid="stHeader"] {
+            display: none !important;
+        }
+        .block-container {
+            padding-top: 1.4rem;
+            padding-bottom: 1.2rem;
+            max-width: 1880px;
         }
         [data-testid="stChatMessage"] {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            backdrop-filter: blur(12px);
-        }
-        .cb-timeline-wrap {
-            display: grid;
-            gap: 12px;
-        }
-        .cb-timeline-card, .cb-empty-card {
-            background: rgba(255,255,255,0.045);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: linear-gradient(180deg, rgba(16,25,38,0.92), rgba(14,22,34,0.82));
+            border: 1px solid var(--cb-border);
             border-radius: 18px;
-            padding: 14px 16px;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(14px);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
         }
-        .cb-timeline-head {
+        [data-testid="stChatMessageContent"] p {
+            line-height: 1.6;
+        }
+        .cb-panel-shell {
+            background: linear-gradient(180deg, rgba(12,20,30,0.76), rgba(10,18,28,0.62));
+            border: 1px solid var(--cb-border);
+            border-radius: 24px;
+            padding: 18px 18px 16px 18px;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 18px 40px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.03);
+        }
+        .cb-header-shell {
+            margin-bottom: 18px;
+        }
+        .cb-rail-shell, .cb-chat-shell, .cb-inspector-shell {
+            min-height: calc(100vh - 12rem);
+        }
+        .cb-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin: 8px 0 12px 0;
+        }
+        .cb-stat-card {
+            padding: 12px 14px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.035);
+            border: 1px solid rgba(255,255,255,0.06);
+            display: grid;
+            gap: 8px;
+        }
+        .cb-stat-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--cb-muted);
+        }
+        .cb-stat-value {
+            font-size: 19px;
+            font-weight: 600;
+            color: var(--cb-text);
+        }
+        .cb-capability-row {
             display: flex;
-            justify-content: space-between;
-            gap: 10px;
-            font-size: 0.82rem;
-            color: rgba(233, 238, 246, 0.9);
-            margin-bottom: 8px;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
         }
-        .cb-timeline-card pre {
-            margin: 0;
-            white-space: pre-wrap;
-            word-break: break-word;
-            color: rgba(220, 232, 245, 0.85);
-            font-size: 0.75rem;
+        .cb-capability-pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 0 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(126,203,255,0.18);
+            background: rgba(126,203,255,0.08);
+            color: #cfe9ff;
+            font-size: 12px;
         }
-        .cb-terminal-meta {
-            font-size: 0.74rem;
-            color: rgba(220, 232, 245, 0.7);
-            margin-bottom: 8px;
+        .cb-notice {
+            margin: 0 0 14px 0;
+            padding: 12px 14px;
+            border-radius: 16px;
+            border: 1px solid var(--cb-border);
+            font-size: 14px;
         }
-        .cb-tone-error {
-            border-color: rgba(248, 113, 113, 0.4);
+        .cb-notice-success {
+            background: rgba(114,211,155,0.12);
+            border-color: rgba(114,211,155,0.22);
+            color: #baf0cf;
         }
-        .cb-tone-warn {
-            border-color: rgba(251, 191, 36, 0.35);
+        .cb-notice-error {
+            background: rgba(255,124,124,0.12);
+            border-color: rgba(255,124,124,0.24);
+            color: #ffd1d1;
         }
-        .cb-tone-success {
-            border-color: rgba(74, 222, 128, 0.3);
+        h1, h2, h3, h4, label, [data-testid="stMetricLabel"] {
+            font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif !important;
+        }
+        h1 {
+            font-size: 3rem !important;
+            line-height: 0.95 !important;
+            margin-bottom: 0.25rem !important;
+        }
+        [data-testid="stMarkdownContainer"] p {
+            color: var(--cb-text);
+        }
+        [data-baseweb="input"] > div,
+        [data-baseweb="select"] > div,
+        [data-testid="stTextInput"] input,
+        [data-testid="stTextArea"] textarea {
+            background: rgba(4, 10, 18, 0.72) !important;
+            border-color: rgba(255,255,255,0.08) !important;
+            color: var(--cb-text) !important;
+            border-radius: 14px !important;
+        }
+        [data-testid="stTextInput"] label,
+        [data-testid="stSelectbox"] label,
+        [data-testid="stMultiSelect"] label,
+        [data-testid="stTextArea"] label,
+        [data-testid="stNumberInput"] label {
+            color: var(--cb-muted) !important;
+        }
+        .stButton > button, .stDownloadButton > button {
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
+            color: var(--cb-text);
+            font-weight: 600;
+            min-height: 2.8rem;
+        }
+        .stButton > button[kind="primary"] {
+            background: linear-gradient(180deg, rgba(126,203,255,0.22), rgba(126,203,255,0.12));
+            border-color: rgba(126,203,255,0.28);
+        }
+        [data-testid="stRadio"] label p,
+        [data-testid="stCheckbox"] label p {
+            color: var(--cb-text) !important;
+        }
+        [data-testid="stRadio"] {
+            margin-bottom: 0.8rem;
+        }
+        [data-testid="stTabs"] {
+            gap: 4px;
+        }
+        [data-testid="stCodeBlock"] pre, code, .stCodeBlock {
+            font-family: "IBM Plex Mono", ui-monospace, monospace !important;
+        }
+        @media (max-width: 1200px) {
+            .cb-stat-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
         }
         </style>
         """,
@@ -861,17 +1030,15 @@ def run_app(client_factory: ClientFactory | None = None) -> None:
     except Exception as exc:
         set_status(error=f"Bootstrap failed: {exc}")
 
-    render_session_sidebar(client)
     render_header()
-    if st.session_state["status_message"]:
-        st.success(st.session_state["status_message"])
-    if st.session_state["ui_error"]:
-        st.error(st.session_state["ui_error"])
+    render_notice()
 
-    left, right = st.columns([1.85, 1.15], gap="large")
-    with left:
+    rail, center, inspector = st.columns([0.72, 1.46, 1.02], gap="large")
+    with rail:
+        render_session_rail(client)
+    with center:
         render_chat_panel(client)
-    with right:
+    with inspector:
         render_status_panels(client)
 
 

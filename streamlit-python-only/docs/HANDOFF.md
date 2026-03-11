@@ -30,6 +30,7 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
      - `rag_session_docs_multiturn_backend`
    - deeper Thales live validation when credentials are available
    - UI refinements and performance polish
+   - continue replacing Streamlit-native rough edges with custom surfaces where the JS shell is materially cleaner
 3. Keep using the live verification scripts when changing contracts:
    - `verify_lot2_live_mongo.py`
    - `verify_lot3_live.py`
@@ -118,6 +119,11 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
   - module toggles for Web/RAG/Apps/Clarification
   - one-run forced modes via `/rag`, `/web`, `/apps`, `/clarify`
   - timeline filtering (`all`, `errors`, `approvals`, `terminal`, `files`)
+- the Streamlit shell now follows a cleaner 3-column structure:
+  - left rail for sessions
+  - center conversation column
+  - right inspector column
+- timeline and terminal event feeds now render through custom HTML cards with concise summaries and collapsible raw payloads instead of dumping noisy raw blocks inline
 - `tests/test_streamlit_app.py` covers the core phase 3 layout through `streamlit.testing.v1`
 - `scripts/verify_lot3.py` runs the full project test suite plus compile checks
 - `scripts/verify_lot3_live.py` starts real sidecar and backend processes, uses the local Mongo daemon, drives the Streamlit app through `AppTest`, and verifies persisted assistant output
@@ -150,3 +156,4 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
   - hard fail: `terminal_sequential_inspect`
   - hard fail: `rag_session_docs_multiturn_backend`
 - the remaining Matrix failures are now answer-quality/contract issues, not backend plumbing failures
+- latest UI cleanup pass kept the full suite green: `39 passed`
