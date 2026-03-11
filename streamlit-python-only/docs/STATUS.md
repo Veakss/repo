@@ -4,7 +4,7 @@
 
 - Branch target: `codex/streamlit-python-only`
 - Remote push: available on `origin`
-- Current phase: lot 3 complete, ready for lot 4
+- Current phase: lot 4 complete, ready for lot 5
 
 ## Done
 
@@ -45,16 +45,22 @@
 - backend filesystem endpoints added for the Streamlit files panel
 - Streamlit test coverage added with `streamlit.testing.v1`
 - lot 3 verification scripts added, including a live Streamlit smoke against backend + sidecar + Mongo
+- RAG service added with Mongo-backed profiles, imported files, chunks, indexing jobs, and session memory
+- sidecar now exposes Python RAG endpoints for profiles, session docs, jobs, memory, and lookup
+- backend proxies the RAG contract and appends assistant turns into session memory
+- runtime now exposes a `rag_lookup` tool for session-aware retrieval
+- Streamlit RAG tab now supports imports, profile CRUD, indexing jobs, memory config, and manual lookup
+- lot 4 verification scripts added, including a live retrieval smoke
 
 ## In Progress
 
-- RAG parity planning
 - Matrix Python port planning
+- terminal parity planning
 
 ## Next Verification Point
 
-- RAG backend surfaces exist for Session Docs, Profiles, and Session Memory
-- Streamlit can consume real RAG states from the Python stack
+- Matrix reports can be generated, stored, and browsed from the Python stack
+- benchmark runs can be launched from Streamlit without the TS matrix runner
 
 ## Update Log
 
@@ -96,3 +102,9 @@
 - verified `pytest` across the full Python subtree including Streamlit tests: `20 passed`
 - verified `python scripts/verify_lot3.py`
 - verified `python scripts/verify_lot3_live.py` with a real backend, sidecar, Mongo daemon, and OpenRouter-backed response
+- added `src/continue_better_py/rag.py` for Mongo-backed RAG storage, indexing, lookup, and session memory
+- added backend and sidecar RAG routes for profiles, file import/list/delete, index jobs, memory, and lookup
+- added the `rag_lookup` runtime tool and exposed the RAG control surface in Streamlit
+- verified `pytest` across the full Python subtree including RAG coverage: `23 passed`
+- verified `python scripts/verify_lot4.py`
+- verified `python scripts/verify_lot4_live.py` with real import, indexing, lookup, memory, backend, sidecar, Mongo, and a real model response of `AURORA_PHASE4`

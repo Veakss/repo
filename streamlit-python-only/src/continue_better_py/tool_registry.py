@@ -76,12 +76,13 @@ class ToolRegistry:
         return payloads
 
 
-def create_default_tool_registry(workspace_root: str) -> ToolRegistry:
+def create_default_tool_registry(workspace_root: str, session_id: str | None = None) -> ToolRegistry:
     settings = get_settings()
-    definitions = build_tool_definitions(workspace_root)
+    definitions = build_tool_definitions(workspace_root, session_id=session_id)
     module_flags = {
         "files": settings.enable_file_tools,
         "clarification": settings.enable_tool_clarification,
+        "rag": settings.enable_rag,
     }
     tools = [
         RegisteredTool(definition=definition, enabled=module_flags.get(definition.module_id, True))
@@ -109,6 +110,17 @@ def create_default_tool_registry(workspace_root: str) -> ToolRegistry:
             active=False,
             status="idle",
             tool_names=[tool.name for tool in tools if tool.module_id == "clarification"],
+        ),
+        ToolModule(
+            id="rag",
+            label="RAG",
+            category="knowledge",
+            version="0.1.0",
+            available=settings.enable_rag,
+            enabled=settings.enable_rag,
+            active=False,
+            status="idle",
+            tool_names=[tool.name for tool in tools if tool.module_id == "rag"],
         ),
     ]
     return ToolRegistry(modules=modules, tools=tools)

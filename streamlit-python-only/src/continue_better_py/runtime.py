@@ -29,6 +29,7 @@ from continue_better_py.tool_registry import ToolRegistry, create_default_tool_r
 
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
+    session_id: str
     run_id: str
     workspace_root: str
     profile: str | None
@@ -45,7 +46,7 @@ class AgentState(TypedDict):
 class RuntimeDependencies:
     model_factory: Callable[[str | None, str | None], Any]
     provider_resolver: Callable[[str | None, str | None], ResolvedProvider]
-    tool_registry_factory: Callable[[str], ToolRegistry]
+    tool_registry_factory: Callable[[str, str | None], ToolRegistry]
     state_store: RunStateStore
 
 
@@ -96,12 +97,12 @@ class RuntimeEngine:
         )
         self.graph = self._create_graph()
 
-    def capabilities_payload(self, workspace_root: str) -> list[dict]:
-        return self.deps.tool_registry_factory(workspace_root).module_payloads()
+    def capabilities_payload(self, workspace_root: str, session_id: str | None = None) -> list[dict]:
+        return self.deps.tool_registry_factory(workspace_root, session_id).module_payloads()
 
     def _create_graph(self):
         def agent(state: AgentState) -> AgentState:
-            registry = self.deps.tool_registry_factory(state["workspace_root"])
+            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"])
             model = self.deps.model_factory(state.get("profile"), state.get("model"))
             provider = self.deps.provider_resolver(state.get("profile"), state.get("model"))
             response = model.bind_tools(registry.enabled_tools()).invoke(state["messages"])
@@ -116,7 +117,7 @@ class RuntimeEngine:
             }
 
         def tools(state: AgentState) -> AgentState:
-            registry = self.deps.tool_registry_factory(state["workspace_root"])
+            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"])
             last_message = state["messages"][-1]
             emitted_messages: list[BaseMessage] = []
             tool_events: list[dict[str, Any]] = []
@@ -217,6 +218,7 @@ class RuntimeEngine:
         provider = self.deps.provider_resolver(request.profile, request.model)
         return {
             "messages": messages,
+            "session_id": request.sessionId,
             "run_id": run_id,
             "workspace_root": request.workspaceRoot or "",
             "profile": request.profile,
@@ -238,6 +240,7 @@ class RuntimeEngine:
             "provider_mode": state["provider_mode"],
             "policy_profile": state["policy_profile"],
             "messages": serialize_messages(state["messages"]),
+            "session_id": state["session_id"],
             "final_text": state.get("final_text", ""),
             "pending_approval": state.get("pending_approval"),
             "pending_clarification": state.get("pending_clarification"),
@@ -246,6 +249,7 @@ class RuntimeEngine:
     def _deserialize_snapshot(self, payload: dict[str, Any]) -> AgentState:
         return {
             "messages": deserialize_messages(payload["messages"]),
+            "session_id": payload["session_id"],
             "run_id": payload["run_id"],
             "workspace_root": payload["workspace_root"],
             "profile": payload.get("profile"),

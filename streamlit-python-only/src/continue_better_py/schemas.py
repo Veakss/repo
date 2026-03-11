@@ -50,3 +50,39 @@ class SessionCreateRequest(BaseModel):
 
 class SessionUpdateRequest(BaseModel):
     title: str
+
+
+class RagProfileCreateRequest(BaseModel):
+    name: str
+
+
+class RagProfileRenameRequest(BaseModel):
+    new_name: str
+
+
+class RagImportRequest(BaseModel):
+    path: str
+
+
+class RagSessionMemoryPatchRequest(BaseModel):
+    enabled: bool | None = None
+    threshold_pct: float | None = None
+    token_budget: int | None = None
+
+
+class RagLookupScope(BaseModel):
+    source_priority: list[str] | None = None
+    session_docs: bool | None = None
+    session_memory: bool | None = None
+    profiles: list[str] | None = None
+
+
+class RagLookupRequest(BaseModel):
+    question: str
+    session_id: str | None = None
+    scope: RagLookupScope | None = None
+
+
+class RagMemoryAppendRequest(BaseModel):
+    prompt: str
+    answer: str

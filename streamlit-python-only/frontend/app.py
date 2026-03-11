@@ -44,6 +44,13 @@ def ensure_state() -> None:
         "ui_error": None,
         "selected_model": settings.llm_model,
         "composer_value": "",
+        "rag_profiles": [],
+        "rag_session_files": [],
+        "rag_profile_files": [],
+        "rag_jobs": [],
+        "rag_memory": None,
+        "selected_rag_profile": None,
+        "rag_lookup_response": None,
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -124,6 +131,7 @@ def bootstrap(client: BackendClient) -> None:
     except Exception:
         st.session_state["file_tree"] = None
         st.session_state["file_content"] = ""
+    refresh_rag_state(client)
 
 
 def consume_events(client: BackendClient, session_id: str, events: list[dict[str, Any]], assistant_text: str | None = None) -> None:
@@ -139,6 +147,25 @@ def consume_events(client: BackendClient, session_id: str, events: list[dict[str
     if assistant_text:
         st.session_state["messages"].append({"role": "assistant", "content": assistant_text})
     refresh_session_state(client, session_id)
+    refresh_rag_state(client)
+
+
+def refresh_rag_state(client: BackendClient) -> None:
+    try:
+        profiles = client.rag_list_profiles().get("profiles", [])
+        st.session_state["rag_profiles"] = profiles
+        if profiles and st.session_state.get("selected_rag_profile") not in profiles:
+            st.session_state["selected_rag_profile"] = profiles[0]
+        if not profiles:
+            st.session_state["selected_rag_profile"] = None
+        session_id = st.session_state.get("session_id")
+        st.session_state["rag_session_files"] = client.rag_get_session_files(session_id).get("files", []) if session_id else []
+        selected_profile = st.session_state.get("selected_rag_profile")
+        st.session_state["rag_profile_files"] = client.rag_get_profile_files(selected_profile).get("files", []) if selected_profile else []
+        st.session_state["rag_jobs"] = client.rag_list_index_jobs(limit=20).get("jobs", [])
+        st.session_state["rag_memory"] = client.rag_get_session_memory(session_id, 80) if session_id else None
+    except Exception:
+        pass
 
 
 def create_session(client: BackendClient, title: str | None = None) -> None:
@@ -146,6 +173,7 @@ def create_session(client: BackendClient, title: str | None = None) -> None:
     st.session_state["session_id"] = created["session_id"]
     refresh_bootstrap(client)
     refresh_session_state(client, st.session_state["session_id"])
+    refresh_rag_state(client)
     set_status(message="Session created")
 
 
@@ -221,11 +249,13 @@ def render_session_sidebar(client: BackendClient) -> None:
             client.update_session(selected, new_title)
             refresh_bootstrap(client)
             refresh_session_state(client, selected)
+            refresh_rag_state(client)
             set_status(message="Session renamed")
         if delete_col.button("Delete", use_container_width=True, disabled=not current):
             client.delete_session(selected)
             refresh_bootstrap(client)
             refresh_session_state(client, st.session_state["session_id"])
+            refresh_rag_state(client)
             set_status(message="Session deleted")
 
     st.sidebar.markdown("### Sessions")
@@ -237,6 +267,7 @@ def render_session_sidebar(client: BackendClient) -> None:
             st.session_state["session_id"] = session["id"]
             refresh_session_state(client, session["id"])
             refresh_files(client)
+            refresh_rag_state(client)
 
 
 def render_header() -> None:
@@ -345,6 +376,131 @@ def render_files_panel(client: BackendClient) -> None:
     st.code(st.session_state.get("file_content", ""), language="python")
 
 
+def render_rag_panel(client: BackendClient) -> None:
+    session_id = st.session_state.get("session_id")
+    top_cols = st.columns([1.3, 1])
+    if top_cols[1].button("Refresh RAG", use_container_width=True):
+        refresh_rag_state(client)
+
+    with st.expander("Session Docs", expanded=True):
+        available_files = flatten_tree(st.session_state.get("file_tree") or {"children": []})
+        import_choices = [path for path in available_files if Path(path).suffix.lower() in {".md", ".txt", ".json", ".yml", ".yaml"}]
+        selected_import = st.selectbox("Import workspace file", options=import_choices or ["No compatible files"], key="rag_session_import")
+        import_disabled = not session_id or not import_choices
+        if st.button("Import To Session Docs", disabled=import_disabled, use_container_width=True):
+            client.rag_import_session_file(session_id, selected_import)
+            refresh_rag_state(client)
+            set_status(message="Session document imported")
+        if st.button("Index Session Docs", disabled=not session_id or not st.session_state["rag_session_files"], use_container_width=True):
+            client.rag_enqueue_session_index_job(session_id)
+            refresh_rag_state(client)
+            set_status(message="Session indexing job enqueued")
+        for file_row in st.session_state.get("rag_session_files", []):
+            cols = st.columns([2.4, 1, 0.8])
+            cols[0].write(file_row.get("source_display_path") or file_row.get("original_name"))
+            cols[1].caption(file_row.get("status", "unknown"))
+            if cols[2].button("Remove", key=f"rag-session-delete-{file_row['id']}", use_container_width=True):
+                client.rag_delete_session_file(session_id, file_row["id"])
+                refresh_rag_state(client)
+                st.rerun()
+
+    with st.expander("Profiles", expanded=True):
+        new_profile = st.text_input("New profile", key="rag_new_profile")
+        if st.button("Create Profile", disabled=not new_profile.strip(), use_container_width=True):
+            client.rag_create_profile(new_profile.strip())
+            refresh_rag_state(client)
+            st.rerun()
+        profiles = st.session_state.get("rag_profiles", [])
+        if profiles:
+            selected_profile = st.selectbox("Active profile", options=profiles, key="selected_rag_profile")
+            profile_name = st.text_input("Rename selected profile", value=selected_profile, key="rag_profile_rename")
+            rename_col, delete_col = st.columns(2)
+            if rename_col.button("Rename Profile", use_container_width=True):
+                client.rag_rename_profile(selected_profile, profile_name)
+                refresh_rag_state(client)
+                st.rerun()
+            if delete_col.button("Delete Profile", use_container_width=True):
+                client.rag_delete_profile(selected_profile)
+                refresh_rag_state(client)
+                st.rerun()
+            profile_import = st.selectbox("Import into profile", options=import_choices or ["No compatible files"], key="rag_profile_import")
+            if st.button("Import To Profile", disabled=not import_choices, use_container_width=True):
+                client.rag_import_profile_file(selected_profile, profile_import)
+                refresh_rag_state(client)
+                st.rerun()
+            if st.button("Index Profile", disabled=not st.session_state["rag_profile_files"], use_container_width=True):
+                client.rag_enqueue_profile_index_job(selected_profile)
+                refresh_rag_state(client)
+                st.rerun()
+            for file_row in st.session_state.get("rag_profile_files", []):
+                cols = st.columns([2.4, 1, 0.8])
+                cols[0].write(file_row.get("source_display_path") or file_row.get("original_name"))
+                cols[1].caption(file_row.get("status", "unknown"))
+                if cols[2].button("Remove", key=f"rag-profile-delete-{file_row['id']}", use_container_width=True):
+                    client.rag_delete_profile_file(selected_profile, file_row["id"])
+                    refresh_rag_state(client)
+                    st.rerun()
+        else:
+            st.info("No profiles yet.")
+
+    with st.expander("Session Memory", expanded=True):
+        memory = st.session_state.get("rag_memory")
+        if not memory or not session_id:
+            st.info("Session memory unavailable.")
+        else:
+            config = memory["config"]
+            enabled = st.checkbox("Enabled", value=bool(config.get("enabled", True)), key="rag_memory_enabled")
+            threshold = st.slider("Threshold", min_value=0.5, max_value=0.99, value=float(config.get("thresholdPct", 0.9)), step=0.01, key="rag_memory_threshold")
+            token_budget = st.number_input("Token Budget", min_value=1000, max_value=200000, value=int(config.get("tokenBudget", 12000)), step=500, key="rag_memory_budget")
+            config_col, compact_col, clear_col = st.columns(3)
+            if config_col.button("Save Memory Config", use_container_width=True):
+                client.rag_patch_session_memory(session_id, {"enabled": enabled, "threshold_pct": threshold, "token_budget": int(token_budget)})
+                refresh_rag_state(client)
+                st.rerun()
+            if compact_col.button("Compact Memory", use_container_width=True):
+                client.rag_compact_session_memory(session_id)
+                refresh_rag_state(client)
+                st.rerun()
+            if clear_col.button("Clear Memory", use_container_width=True):
+                client.rag_clear_session_memory(session_id)
+                refresh_rag_state(client)
+                st.rerun()
+            summary = memory["summary"]
+            st.caption(f"Entries: {summary.get('entryCount', 0)} | Estimated Tokens: {summary.get('estimatedTokens', 0)}")
+            if summary.get("text"):
+                st.code(summary["text"], language="markdown")
+            for entry in memory.get("entries", [])[:10]:
+                st.markdown(f"**{entry.get('kind', 'context')}** · {entry.get('ts', '')}")
+                st.write(entry.get("content", ""))
+
+    with st.expander("Index Jobs", expanded=False):
+        jobs = st.session_state.get("rag_jobs", [])
+        if not jobs:
+            st.info("No indexing jobs yet.")
+        for job in jobs:
+            st.markdown(f"**{job['job_id']}**")
+            st.caption(f"{job.get('scope_kind')}:{job.get('scope_id')} | {job.get('status')} | {job.get('stage')}")
+            st.progress(int(job.get("progress", {}).get("percent", 0)))
+
+    with st.expander("Lookup", expanded=False):
+        question = st.text_input("Lookup question", key="rag_lookup_question")
+        if st.button("Run RAG Lookup", disabled=not question.strip(), use_container_width=True):
+            scope = {}
+            if st.session_state.get("selected_rag_profile"):
+                scope["profiles"] = [st.session_state["selected_rag_profile"]]
+            st.session_state["rag_lookup_response"] = client.rag_lookup(question.strip(), session_id=session_id, scope=scope or None)
+        response = st.session_state.get("rag_lookup_response")
+        if response:
+            st.caption(f"Status: {response.get('status')}")
+            if response.get("message"):
+                st.info(response["message"])
+            for hit in response.get("hits", [])[:5]:
+                citation = hit.get("citation", {})
+                st.markdown(f"**{citation.get('path', 'unknown')}**")
+                st.caption(f"Score: {hit.get('score')}")
+                st.write(hit.get("snippet", ""))
+
+
 def render_status_panels(client: BackendClient) -> None:
     tabs = st.tabs(["Timeline", "Approvals", "Clarification", "Files", "RAG", "Terminal", "Matrix"])
     with tabs[0]:
@@ -356,7 +512,7 @@ def render_status_panels(client: BackendClient) -> None:
     with tabs[3]:
         render_files_panel(client)
     with tabs[4]:
-        st.info("RAG UI panel is wired as a placeholder until the RAG backend surfaces are ported in phase 4.")
+        render_rag_panel(client)
     with tabs[5]:
         st.info("Interactive terminal UI waits on the Python terminal runtime surfaces.")
     with tabs[6]:

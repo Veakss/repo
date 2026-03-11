@@ -48,6 +48,57 @@ class FakeClient:
     def fs_read(self, path):
         return {"path": path, "content": "hello workspace"}
 
+    def rag_list_profiles(self):
+        return {"profiles": ["default"]}
+
+    def rag_get_session_files(self, session_id):
+        return {"files": [{"id": "file-1", "status": "done", "source_display_path": "notes.txt"}]}
+
+    def rag_get_profile_files(self, profile_name):
+        return {"files": []}
+
+    def rag_list_index_jobs(self, limit=None):
+        return {"jobs": [{"job_id": "job-1", "status": "done", "stage": "done", "scope_kind": "session", "scope_id": "s1", "progress": {"percent": 100}}]}
+
+    def rag_get_session_memory(self, session_id, limit=None):
+        return {"config": {"enabled": True, "thresholdPct": 0.9, "tokenBudget": 12000}, "summary": {"text": "", "entryCount": 0, "estimatedTokens": 0}, "entries": []}
+
+    def rag_patch_session_memory(self, session_id, payload):
+        return self.rag_get_session_memory(session_id)
+
+    def rag_compact_session_memory(self, session_id):
+        return self.rag_get_session_memory(session_id)
+
+    def rag_clear_session_memory(self, session_id):
+        return self.rag_get_session_memory(session_id)
+
+    def rag_create_profile(self, name):
+        return {"profiles": ["default", name]}
+
+    def rag_rename_profile(self, profile_name, new_name):
+        return {"profiles": [new_name]}
+
+    def rag_delete_profile(self, profile_name):
+        return {"profiles": []}
+
+    def rag_import_session_file(self, session_id, path):
+        return {"ok": True}
+
+    def rag_import_profile_file(self, profile_name, path):
+        return {"ok": True}
+
+    def rag_enqueue_session_index_job(self, session_id):
+        return {"job": {"job_id": "job-1"}}
+
+    def rag_enqueue_profile_index_job(self, profile_name):
+        return {"job": {"job_id": "job-2"}}
+
+    def rag_delete_session_file(self, session_id, file_id):
+        return {"ok": True}
+
+    def rag_delete_profile_file(self, profile_name, file_id):
+        return {"ok": True}
+
     def stream_chat(self, payload):
         return iter([])
 

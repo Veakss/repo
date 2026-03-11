@@ -6,6 +6,8 @@ from pathlib import Path
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+from continue_better_py.rag import RagService
+
 
 class ListDirectoryInput(BaseModel):
     path: str = Field(default=".", description="Path relative to the workspace root.")
@@ -27,6 +29,11 @@ class ClarificationInput(BaseModel):
     option_c: str | None = Field(default=None, description="Third suggested answer.")
 
 
+class RagLookupInput(BaseModel):
+    question: str = Field(description="The question to answer using the active RAG sources.")
+    profiles: str | None = Field(default=None, description="Optional comma-separated profile names to restrict profile retrieval.")
+
+
 @dataclass(slots=True)
 class ToolDefinition:
     tool: StructuredTool
@@ -42,7 +49,7 @@ def resolve_workspace_path(workspace_root: str, relative_path: str) -> Path:
     return target
 
 
-def build_tool_definitions(workspace_root: str) -> list[ToolDefinition]:
+def build_tool_definitions(workspace_root: str, session_id: str | None = None, rag_service: RagService | None = None) -> list[ToolDefinition]:
     def list_directory(path: str = ".") -> str:
         target = resolve_workspace_path(workspace_root, path)
         if not target.exists():
@@ -79,7 +86,16 @@ def build_tool_definitions(workspace_root: str) -> list[ToolDefinition]:
             return f"{question}\n{rendered}"
         return question
 
-    return [
+    def rag_lookup(question: str, profiles: str | None = None) -> str:
+        rag = rag_service or RagService()
+        profile_list = [item.strip() for item in (profiles or "").split(",") if item.strip()] or None
+        return rag.lookup_for_model(
+            question=question,
+            session_id=session_id,
+            scope={"profiles": profile_list} if profile_list else None,
+        )
+
+    definitions = [
         ToolDefinition(
             tool=StructuredTool.from_function(
                 func=list_directory,
@@ -121,11 +137,25 @@ def build_tool_definitions(workspace_root: str) -> list[ToolDefinition]:
             module_id="clarification",
         ),
     ]
+    if session_id:
+        definitions.append(
+            ToolDefinition(
+                tool=StructuredTool.from_function(
+                    func=rag_lookup,
+                    name="rag_lookup",
+                    description="Search Session Docs, Profiles, and Session Memory for relevant context with citations and transparency.",
+                    args_schema=RagLookupInput,
+                ),
+                risk_level="safe",
+                module_id="rag",
+            )
+        )
+    return definitions
 
 
-def build_tools(workspace_root: str) -> list[StructuredTool]:
-    return [definition.tool for definition in build_tool_definitions(workspace_root)]
+def build_tools(workspace_root: str, session_id: str | None = None) -> list[StructuredTool]:
+    return [definition.tool for definition in build_tool_definitions(workspace_root, session_id=session_id)]
 
 
-def build_tool_lookup(workspace_root: str) -> dict[str, ToolDefinition]:
-    return {definition.tool.name: definition for definition in build_tool_definitions(workspace_root)}
+def build_tool_lookup(workspace_root: str, session_id: str | None = None) -> dict[str, ToolDefinition]:
+    return {definition.tool.name: definition for definition in build_tool_definitions(workspace_root, session_id=session_id)}

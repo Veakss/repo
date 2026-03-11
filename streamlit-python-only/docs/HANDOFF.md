@@ -19,20 +19,21 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
 
 ## Immediate Next Steps
 
-1. Start lot 4:
-   - add canonical Mongo repositories for `rag_profiles`, `rag_files`, `rag_chunks`, and `rag_memory_entries`
-   - expose backend and sidecar RAG endpoints for Session Docs, Profiles, and Session Memory
-   - implement indexing jobs and retrieval formatting
-2. Keep phase 3 UI stable while phase 4 lands:
-   - preserve the existing Streamlit session/chat/timeline/files contract
-   - only replace the placeholder RAG tab once the backend routes are ready
-3. After lot 4, move to Matrix:
-   - Python scenario catalog
-   - report persistence
-   - Streamlit `/matrix` equivalent
+1. Start lot 5:
+   - port the Matrix runner and report storage to Python
+   - persist matrix runs and reports in Mongo plus JSON export mirrors
+   - build the Streamlit matrix dashboard and report browser
+2. Keep phase 4 stable while phase 5 lands:
+   - preserve the new backend/sidecar RAG contract
+   - keep the Streamlit RAG panel wired to the real endpoints
+3. After Matrix, finish the remaining parity gaps:
+   - terminal hardening
+   - replay diagnostics
+   - packaging and polish
 4. Keep using the live verification scripts when changing contracts:
    - `verify_lot2_live_mongo.py`
    - `verify_lot3_live.py`
+   - `verify_lot4_live.py`
 
 ## Practical Constraints
 
@@ -91,6 +92,14 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
   - approval actions
   - clarification answers
   - workspace file tree and file preview
+- RAG currently supports:
+  - Session Docs import/list/delete/index
+  - Profiles CRUD plus import/list/delete/index
+  - Session Memory config, append, compact, clear
+  - lookup with transparency statuses and citations
 - `tests/test_streamlit_app.py` covers the core phase 3 layout through `streamlit.testing.v1`
 - `scripts/verify_lot3.py` runs the full project test suite plus compile checks
 - `scripts/verify_lot3_live.py` starts real sidecar and backend processes, uses the local Mongo daemon, drives the Streamlit app through `AppTest`, and verifies persisted assistant output
+- `src/continue_better_py/rag.py` is the new shared RAG implementation used by the sidecar and runtime tool
+- `scripts/verify_lot4.py` runs the full test suite and compile checks after RAG changes
+- `scripts/verify_lot4_live.py` verifies real import, indexing, lookup, session memory availability, and a live model answer against indexed session docs

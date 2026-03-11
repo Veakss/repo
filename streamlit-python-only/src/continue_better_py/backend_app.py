@@ -15,6 +15,11 @@ from continue_better_py.schemas import (
     ChatMessage,
     ChatStreamRequest,
     ClarificationDecisionRequest,
+    RagImportRequest,
+    RagLookupRequest,
+    RagProfileCreateRequest,
+    RagProfileRenameRequest,
+    RagSessionMemoryPatchRequest,
     SessionCreateRequest,
     SessionUpdateRequest,
 )
@@ -144,6 +149,38 @@ def create_backend_app(
                 _raise_sidecar_error(response)
             return response.json()
 
+    @app.get("/v1/rag/profiles")
+    async def rag_list_profiles() -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.get("/v1/rag/profiles")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.post("/v1/rag/profiles")
+    async def rag_create_profile(request: RagProfileCreateRequest) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.post("/v1/rag/profiles", json=request.model_dump())
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.patch("/v1/rag/profiles/{profile_name}")
+    async def rag_rename_profile(profile_name: str, request: RagProfileRenameRequest) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.patch(f"/v1/rag/profiles/{profile_name}", json=request.model_dump())
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.delete("/v1/rag/profiles/{profile_name}")
+    async def rag_delete_profile(profile_name: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.delete(f"/v1/rag/profiles/{profile_name}")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
     @app.get("/sessions")
     @app.get("/v1/sessions")
     def list_sessions() -> dict[str, Any]:
@@ -225,6 +262,140 @@ def create_backend_app(
             raise HTTPException(status_code=404, detail="File not found")
         return {"path": str(target.relative_to(settings.resolved_workspace_root)), "content": target.read_text(encoding="utf-8")}
 
+    @app.post("/v1/rag/session/{session_id}/files/import")
+    async def rag_import_session_file(session_id: str, request: RagImportRequest) -> dict[str, Any]:
+        target = _resolve_in_workspace(settings.resolved_workspace_root, request.path)
+        if not target.exists() or not target.is_file():
+            raise HTTPException(status_code=404, detail="Source file not found in workspace")
+        async with sidecar_client(timeout=60.0) as client:
+            response = await client.post(f"/v1/rag/session/{session_id}/files/import", json={"path": str(target)})
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.post("/v1/rag/profiles/{profile_name}/files/import")
+    async def rag_import_profile_file(profile_name: str, request: RagImportRequest) -> dict[str, Any]:
+        target = _resolve_in_workspace(settings.resolved_workspace_root, request.path)
+        if not target.exists() or not target.is_file():
+            raise HTTPException(status_code=404, detail="Source file not found in workspace")
+        async with sidecar_client(timeout=60.0) as client:
+            response = await client.post(f"/v1/rag/profiles/{profile_name}/files/import", json={"path": str(target)})
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.get("/v1/rag/session/{session_id}/files")
+    async def rag_get_session_files(session_id: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.get(f"/v1/rag/session/{session_id}/files")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.get("/v1/rag/profiles/{profile_name}/files")
+    async def rag_get_profile_files(profile_name: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.get(f"/v1/rag/profiles/{profile_name}/files")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.delete("/v1/rag/session/{session_id}/files/{file_id}")
+    async def rag_delete_session_file(session_id: str, file_id: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.delete(f"/v1/rag/session/{session_id}/files/{file_id}")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.delete("/v1/rag/profiles/{profile_name}/files/{file_id}")
+    async def rag_delete_profile_file(profile_name: str, file_id: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.delete(f"/v1/rag/profiles/{profile_name}/files/{file_id}")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.post("/v1/rag/session/{session_id}/index/jobs")
+    async def rag_enqueue_session_index_job(session_id: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.post(f"/v1/rag/session/{session_id}/index/jobs")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.post("/v1/rag/profiles/{profile_name}/index/jobs")
+    async def rag_enqueue_profile_index_job(profile_name: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.post(f"/v1/rag/profiles/{profile_name}/index/jobs")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.get("/v1/rag/index/jobs")
+    async def rag_list_index_jobs(limit: int | None = Query(None, ge=1, le=200)) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.get("/v1/rag/index/jobs", params={"limit": limit} if limit else None)
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.get("/v1/rag/index/jobs/{job_id}")
+    async def rag_get_index_job(job_id: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.get(f"/v1/rag/index/jobs/{job_id}")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.post("/v1/rag/index/jobs/{job_id}/retry")
+    async def rag_retry_index_job(job_id: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.post(f"/v1/rag/index/jobs/{job_id}/retry")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.get("/v1/rag/session/{session_id}/memory")
+    async def rag_get_session_memory(session_id: str, limit: int | None = Query(None, ge=1, le=300)) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.get(f"/v1/rag/session/{session_id}/memory", params={"limit": limit} if limit else None)
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.patch("/v1/rag/session/{session_id}/memory")
+    async def rag_patch_session_memory(session_id: str, request: RagSessionMemoryPatchRequest) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.patch(f"/v1/rag/session/{session_id}/memory", json=request.model_dump(exclude_none=True))
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.post("/v1/rag/session/{session_id}/memory/compact")
+    async def rag_compact_session_memory(session_id: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.post(f"/v1/rag/session/{session_id}/memory/compact")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.post("/v1/rag/session/{session_id}/memory/clear")
+    async def rag_clear_session_memory(session_id: str) -> dict[str, Any]:
+        async with sidecar_client(timeout=20.0) as client:
+            response = await client.post(f"/v1/rag/session/{session_id}/memory/clear")
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
+    @app.post("/v1/rag/lookup")
+    async def rag_lookup(request: RagLookupRequest) -> dict[str, Any]:
+        async with sidecar_client(timeout=30.0) as client:
+            response = await client.post("/v1/rag/lookup", json=request.model_dump(exclude_none=True))
+            if response.status_code >= 400:
+                _raise_sidecar_error(response)
+            return response.json()
+
     @app.post("/chat/stream")
     @app.post("/v1/chat/stream")
     async def chat_stream(request: ChatStreamRequest):
@@ -297,6 +468,14 @@ def create_backend_app(
             assistant_text = "".join(assistant_tokens).strip()
             if assistant_text:
                 store.add_message(request.session_id, "assistant", assistant_text, run_id=run_id)
+                async with sidecar_client(timeout=20.0) as client:
+                    try:
+                        await client.post(
+                            f"/v1/rag/session/{request.session_id}/memory/append",
+                            json={"prompt": request.message, "answer": assistant_text},
+                        )
+                    except Exception:
+                        pass
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -345,6 +524,16 @@ def create_backend_app(
             if assistant_text and observed_run_id:
                 run = get_run_or_404(observed_run_id)
                 store.add_message(run["session_id"], "assistant", assistant_text, run_id=observed_run_id)
+                async with sidecar_client(timeout=20.0) as client:
+                    try:
+                        messages = store.get_messages(run["session_id"], limit=5)
+                        last_user = next((row["content"] for row in reversed(messages) if row["role"] == "user"), "")
+                        await client.post(
+                            f"/v1/rag/session/{run['session_id']}/memory/append",
+                            json={"prompt": last_user, "answer": assistant_text},
+                        )
+                    except Exception:
+                        pass
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -398,6 +587,14 @@ def create_backend_app(
             if assistant_text and observed_run_id:
                 run = get_run_or_404(observed_run_id)
                 store.add_message(run["session_id"], "assistant", assistant_text, run_id=observed_run_id)
+                async with sidecar_client(timeout=20.0) as client:
+                    try:
+                        await client.post(
+                            f"/v1/rag/session/{run['session_id']}/memory/append",
+                            json={"prompt": request.answer, "answer": assistant_text},
+                        )
+                    except Exception:
+                        pass
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 

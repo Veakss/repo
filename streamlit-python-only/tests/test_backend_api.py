@@ -182,3 +182,66 @@ def test_backend_persists_approval_and_clarification_flows(tmp_path):
     assert run["meta"]["state"] == "completed"
     messages = client.get(f"/v1/sessions/{session_id}/messages").json()["messages"]
     assert messages[-1]["content"] == "Updated app.py"
+
+
+def test_backend_proxies_rag_routes(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/rag/profiles" and request.method == "GET":
+            return httpx.Response(200, json={"profiles": ["default"]})
+        if request.url.path == "/v1/rag/profiles" and request.method == "POST":
+            return httpx.Response(200, json={"ok": True, "profiles": ["default", "team"]})
+        if request.url.path.startswith("/v1/rag/session/") and request.url.path.endswith("/files/import"):
+            return httpx.Response(200, json={"imported": True, "entry": {"id": "file-1"}})
+        if request.url.path.startswith("/v1/rag/session/") and request.url.path.endswith("/files"):
+            return httpx.Response(200, json={"scope": {"kind": "session", "id": "s1"}, "files": [{"id": "file-1", "status": "pending"}]})
+        if request.url.path.startswith("/v1/rag/session/") and request.url.path.endswith("/index/jobs"):
+            return httpx.Response(200, json={"job": {"job_id": "job-1", "status": "queued"}})
+        if request.url.path == "/v1/rag/index/jobs":
+            return httpx.Response(200, json={"jobs": [{"job_id": "job-1", "status": "done"}], "queue": {"processing": False, "queuedJobIds": [], "activeJobId": None}})
+        if request.url.path.startswith("/v1/rag/session/") and request.url.path.endswith("/memory"):
+            if request.method == "GET":
+                return httpx.Response(200, json={"config": {"enabled": True, "thresholdPct": 0.9, "tokenBudget": 12000}, "summary": {"text": "", "entryCount": 0, "estimatedTokens": 0}, "entries": []})
+            return httpx.Response(200, json={"config": {"enabled": False, "thresholdPct": 0.75, "tokenBudget": 4000}, "summary": {"text": "", "entryCount": 0, "estimatedTokens": 0}, "entries": []})
+        if request.url.path == "/v1/rag/lookup":
+            return httpx.Response(200, json={"status": "ok", "query": "phase 4", "hits": [{"snippet": "Phase 4 covers RAG parity.", "citation": {"path": "notes.txt"}}]})
+        if request.url.path == "/v1/capabilities":
+            return httpx.Response(200, json={"tools": {"files": True, "rag": True}})
+        if request.url.path == "/v1/models":
+            return httpx.Response(200, json={"models": [{"id": "gemini"}]})
+        raise AssertionError(f"Unexpected path: {request.url.path} {request.method}")
+
+    client, _store = build_test_client(tmp_path, handler)
+    session_id = client.post("/v1/sessions", json={"title": "RAG Session"}).json()["session_id"]
+
+    profiles = client.get("/v1/rag/profiles")
+    assert profiles.status_code == 200
+    assert profiles.json()["profiles"] == ["default"]
+
+    created = client.post("/v1/rag/profiles", json={"name": "team"})
+    assert created.status_code == 200
+    assert "team" in created.json()["profiles"]
+
+    imported = client.post(f"/v1/rag/session/{session_id}/files/import", json={"path": "notes.txt"})
+    assert imported.status_code == 200
+
+    files = client.get(f"/v1/rag/session/{session_id}/files")
+    assert files.status_code == 200
+    assert files.json()["files"][0]["id"] == "file-1"
+
+    enqueued = client.post(f"/v1/rag/session/{session_id}/index/jobs")
+    assert enqueued.status_code == 200
+    assert enqueued.json()["job"]["job_id"] == "job-1"
+
+    jobs = client.get("/v1/rag/index/jobs")
+    assert jobs.status_code == 200
+    assert jobs.json()["jobs"][0]["status"] == "done"
+
+    memory = client.get(f"/v1/rag/session/{session_id}/memory")
+    assert memory.status_code == 200
+    patched = client.patch(f"/v1/rag/session/{session_id}/memory", json={"enabled": False, "threshold_pct": 0.75, "token_budget": 4000})
+    assert patched.status_code == 200
+    assert patched.json()["config"]["enabled"] is False
+
+    lookup = client.post("/v1/rag/lookup", json={"question": "phase 4", "session_id": session_id})
+    assert lookup.status_code == 200
+    assert lookup.json()["hits"][0]["citation"]["path"] == "notes.txt"
