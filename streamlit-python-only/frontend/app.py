@@ -325,28 +325,48 @@ def render_notice() -> None:
 
 
 def render_shell_stats() -> None:
-    cards = [
-        ("Session", _shorten(st.session_state.get("session_id"))),
-        ("Active Run", _shorten(st.session_state.get("active_run_id"))),
-        ("Approvals", str(len(st.session_state["pending_approvals"]))),
-        ("Clarification", "open" if st.session_state["pending_clarification"] else "none"),
-    ]
-    html_cards = "".join(
-        f"""
-        <div class="cb-stat-card">
-          <span class="cb-stat-label">{label}</span>
-          <span class="cb-stat-value">{value}</span>
-        </div>
-        """
-        for label, value in cards
-    )
-    st.markdown(f'<div class="cb-stat-grid">{html_cards}</div>', unsafe_allow_html=True)
+    run_col, approval_col, clarification_col = st.columns(3)
+    with run_col:
+        st.markdown("**Run**")
+        st.caption(_shorten(st.session_state.get("active_run_id")))
+    with approval_col:
+        st.markdown("**Approvals**")
+        st.caption(str(len(st.session_state["pending_approvals"])))
+    with clarification_col:
+        st.markdown("**Clarification**")
+        st.caption("open" if st.session_state["pending_clarification"] else "none")
 
 
-def render_session_rail(client: BackendClient) -> None:
-    st.markdown("### Continue Better")
-    st.caption("Python rewrite")
-    st.text_input("Backend URL", key="backend_url")
+def render_session_panel(client: BackendClient) -> None:
+    st.markdown("#### Sessions")
+    sessions = st.session_state["sessions"]
+    session_ids = [session["id"] for session in sessions]
+    current_session_id = st.session_state.get("session_id")
+    if session_ids:
+        current_index = session_ids.index(current_session_id) if current_session_id in session_ids else 0
+        selected_session_id = st.selectbox(
+            "Current session",
+            options=session_ids,
+            index=current_index,
+            key="session_picker",
+            format_func=lambda session_id: next(
+                (
+                    f"{session['title']} · {session.get('message_count', 0)} messages"
+                    for session in sessions
+                    if session["id"] == session_id
+                ),
+                session_id,
+            ),
+        )
+        if selected_session_id != current_session_id:
+            st.session_state["session_id"] = selected_session_id
+            refresh_session_state(client, selected_session_id)
+            refresh_files(client)
+            refresh_rag_state(client)
+            st.rerun()
+    else:
+        st.info("No sessions yet.")
+
     left, right = st.columns(2)
     if left.button("Refresh", use_container_width=True):
         bootstrap(get_client())
@@ -354,10 +374,14 @@ def render_session_rail(client: BackendClient) -> None:
     if right.button("New Session", use_container_width=True):
         create_session(client)
 
-    with st.expander("Session Actions", expanded=True):
-        selected = st.session_state["session_id"]
-        sessions = st.session_state["sessions"]
-        current = next((session for session in sessions if session["id"] == selected), None)
+    selected = st.session_state["session_id"]
+    current = next((session for session in sessions if session["id"] == selected), None)
+    if current:
+        st.caption(f"Selected: {current['title']}")
+        st.caption(f"Messages: {current.get('message_count', 0)}")
+
+    with st.expander("Session Settings", expanded=False):
+        st.text_input("Backend URL", key="backend_url")
         title_value = current["title"] if current else ""
         new_title = st.text_input("Rename", value=title_value, key="rename_session_value")
         rename_col, delete_col = st.columns(2)
@@ -374,17 +398,6 @@ def render_session_rail(client: BackendClient) -> None:
             refresh_rag_state(client)
             set_status(message="Session deleted")
 
-    st.markdown("#### Sessions")
-    for session in st.session_state["sessions"]:
-        selected = session["id"] == st.session_state["session_id"]
-        message_count = session.get("message_count", 0)
-        label = f"{session['title']}\n{message_count} messages"
-        if st.button(label, key=f"session-{session['id']}", use_container_width=True, type="primary" if selected else "secondary"):
-            st.session_state["session_id"] = session["id"]
-            refresh_session_state(client, session["id"])
-            refresh_files(client)
-            refresh_rag_state(client)
-
 
 def render_header() -> None:
     capabilities = st.session_state.get("capabilities") or {}
@@ -393,10 +406,10 @@ def render_header() -> None:
     if st.session_state["selected_model"] not in model_labels:
         st.session_state["selected_model"] = model_labels[0]
 
-    title_col, meta_col = st.columns([1.5, 1.1], gap="large")
+    title_col, meta_col = st.columns([1.1, 1.25], gap="large")
     with title_col:
-        st.title("Continue Better")
-        st.caption("Python control plane with a cleaner shell and JS-parity runtime controls")
+        st.markdown('<div class="cb-title-block"><h1>Continue Better</h1><p>Python control plane with a cleaner shell and JS-parity runtime controls</p></div>', unsafe_allow_html=True)
+        render_shell_stats()
     with meta_col:
         control_a, control_b = st.columns(2)
         control_a.selectbox("Model", options=model_labels, key="selected_model")
@@ -423,10 +436,7 @@ def render_header() -> None:
             f'<div class="cb-capability-row">{"".join(f"<span class=\"cb-capability-pill\">{badge}</span>" for badge in badges) or "<span class=\"cb-capability-pill\">No capabilities</span>"}</div>',
             unsafe_allow_html=True,
         )
-
-    render_shell_stats()
-
-    control_cols = st.columns([1.1, 1.1, 1.1, 1.1, 1.2])
+    control_cols = st.columns([1, 1, 1, 1, 1.1])
     control_cols[0].checkbox("Web", key="tool_toggle_web", value=st.session_state["tool_toggles"]["webSearch"])
     control_cols[1].checkbox("RAG", key="tool_toggle_rag", value=st.session_state["tool_toggles"]["rag"])
     control_cols[2].checkbox("Apps", key="tool_toggle_apps", value=st.session_state["tool_toggles"]["appActions"])
@@ -444,6 +454,7 @@ def render_header() -> None:
         "clarification": bool(st.session_state.get("tool_toggle_clarification", True)),
     }
     st.caption("Directives: `/rag`, `/web`, `/apps`, `/clarify` force the matching orchestration mode for one run.")
+    st.markdown('<div class="cb-header-divider"></div>', unsafe_allow_html=True)
 
 
 def render_chat_panel(client: BackendClient) -> None:
@@ -451,6 +462,7 @@ def render_chat_panel(client: BackendClient) -> None:
     for message in st.session_state["messages"]:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+    st.markdown('<div class="cb-chat-bottom-spacer"></div>', unsafe_allow_html=True)
 
     prompt = st.chat_input("Ask the agent")
     if prompt:
@@ -868,9 +880,20 @@ def inject_css() -> None:
             display: none !important;
         }
         .block-container {
-            padding-top: 1.4rem;
-            padding-bottom: 1.2rem;
+            padding-top: 1rem;
+            padding-bottom: 8rem;
             max-width: 1880px;
+        }
+        .cb-title-block h1 {
+            font-size: 2.75rem !important;
+            line-height: 0.96 !important;
+            margin: 0 0 0.3rem 0 !important;
+        }
+        .cb-title-block p {
+            margin: 0;
+            color: var(--cb-muted);
+            font-size: 0.98rem;
+            max-width: 44rem;
         }
         [data-testid="stChatMessage"] {
             background: linear-gradient(180deg, rgba(16,25,38,0.92), rgba(14,22,34,0.82));
@@ -879,53 +902,18 @@ def inject_css() -> None:
             backdrop-filter: blur(14px);
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
         }
+        [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
+            font-size: 1rem;
+        }
         [data-testid="stChatMessageContent"] p {
             line-height: 1.6;
-        }
-        .cb-panel-shell {
-            background: linear-gradient(180deg, rgba(12,20,30,0.76), rgba(10,18,28,0.62));
-            border: 1px solid var(--cb-border);
-            border-radius: 24px;
-            padding: 18px 18px 16px 18px;
-            backdrop-filter: blur(16px);
-            box-shadow: 0 18px 40px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.03);
-        }
-        .cb-header-shell {
-            margin-bottom: 18px;
-        }
-        .cb-rail-shell, .cb-chat-shell, .cb-inspector-shell {
-            min-height: calc(100vh - 12rem);
-        }
-        .cb-stat-grid {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 12px;
-            margin: 8px 0 12px 0;
-        }
-        .cb-stat-card {
-            padding: 12px 14px;
-            border-radius: 18px;
-            background: rgba(255,255,255,0.035);
-            border: 1px solid rgba(255,255,255,0.06);
-            display: grid;
-            gap: 8px;
-        }
-        .cb-stat-label {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--cb-muted);
-        }
-        .cb-stat-value {
-            font-size: 19px;
-            font-weight: 600;
-            color: var(--cb-text);
         }
         .cb-capability-row {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
             justify-content: flex-end;
+            margin-top: 0.4rem;
         }
         .cb-capability-pill {
             display: inline-flex;
@@ -955,11 +943,20 @@ def inject_css() -> None:
             border-color: rgba(255,124,124,0.24);
             color: #ffd1d1;
         }
+        .cb-header-divider {
+            width: 100%;
+            height: 1px;
+            margin: 0.45rem 0 0.2rem 0;
+            background: linear-gradient(90deg, rgba(255,255,255,0.09), rgba(126,203,255,0.22), rgba(255,255,255,0.02));
+        }
+        .cb-chat-bottom-spacer {
+            height: 6.5rem;
+        }
         h1, h2, h3, h4, label, [data-testid="stMetricLabel"] {
             font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif !important;
         }
         h1 {
-            font-size: 3rem !important;
+            font-size: 2.75rem !important;
             line-height: 0.95 !important;
             margin-bottom: 0.25rem !important;
         }
@@ -982,6 +979,12 @@ def inject_css() -> None:
         [data-testid="stNumberInput"] label {
             color: var(--cb-muted) !important;
         }
+        [data-testid="stSelectbox"] > label,
+        [data-testid="stTextInput"] > label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
         .stButton > button, .stDownloadButton > button {
             border-radius: 14px;
             border: 1px solid rgba(255,255,255,0.08);
@@ -994,6 +997,27 @@ def inject_css() -> None:
             background: linear-gradient(180deg, rgba(126,203,255,0.22), rgba(126,203,255,0.12));
             border-color: rgba(126,203,255,0.28);
         }
+        [data-testid="stChatInput"] {
+            position: fixed;
+            left: 50%;
+            bottom: 1rem;
+            transform: translateX(-50%);
+            width: min(52vw, 900px);
+            z-index: 999;
+            background: linear-gradient(180deg, rgba(7, 15, 24, 0.94), rgba(7, 15, 24, 0.82));
+            padding: 0.7rem 0.75rem;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 18px 50px rgba(0,0,0,0.34);
+            backdrop-filter: blur(18px);
+        }
+        [data-testid="stChatInput"] textarea,
+        [data-testid="stChatInput"] input {
+            background: transparent !important;
+        }
+        [data-testid="column"] {
+            min-height: calc(100vh - 13rem);
+        }
         [data-testid="stRadio"] label p,
         [data-testid="stCheckbox"] label p {
             color: var(--cb-text) !important;
@@ -1001,15 +1025,15 @@ def inject_css() -> None:
         [data-testid="stRadio"] {
             margin-bottom: 0.8rem;
         }
-        [data-testid="stTabs"] {
-            gap: 4px;
-        }
         [data-testid="stCodeBlock"] pre, code, .stCodeBlock {
             font-family: "IBM Plex Mono", ui-monospace, monospace !important;
         }
         @media (max-width: 1200px) {
-            .cb-stat-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+            .cb-title-block h1 {
+                font-size: 2.2rem !important;
+            }
+            [data-testid="stChatInput"] {
+                width: min(68vw, 900px);
             }
         }
         </style>
@@ -1033,9 +1057,9 @@ def run_app(client_factory: ClientFactory | None = None) -> None:
     render_header()
     render_notice()
 
-    rail, center, inspector = st.columns([0.72, 1.46, 1.02], gap="large")
+    rail, center, inspector = st.columns([1, 2, 1], gap="large")
     with rail:
-        render_session_rail(client)
+        render_session_panel(client)
     with center:
         render_chat_panel(client)
     with inspector:
