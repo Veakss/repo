@@ -460,13 +460,15 @@ def render_header() -> None:
     st.markdown('<div class="cb-header-divider"></div>', unsafe_allow_html=True)
 
 
-def render_chat_panel(client: BackendClient) -> None:
+def render_chat_panel() -> None:
     st.markdown("#### Conversation")
     for message in st.session_state["messages"]:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
     st.markdown('<div class="cb-chat-bottom-spacer"></div>', unsafe_allow_html=True)
 
+
+def render_chat_composer(client: BackendClient) -> None:
     prompt = st.chat_input("Ask the agent")
     if prompt:
         with st.chat_message("user"):
@@ -1248,10 +1250,11 @@ def run_app(client_factory: ClientFactory | None = None) -> None:
             render_session_panel(client)
     with center:
         with st.container(key="center_panel", height=PANEL_HEIGHT, border=False):
-            render_chat_panel(client)
+            render_chat_panel()
     with inspector:
         with st.container(key="right_panel", height=PANEL_HEIGHT, border=False):
             render_status_panels(client)
+    render_chat_composer(client)
     render_floating_tool_access()
 
 
