@@ -326,21 +326,16 @@ def render_notice() -> None:
 
 
 def render_shell_stats() -> None:
-    cards = [
-        ("Run", _shorten(st.session_state.get("active_run_id"), 18)),
-        ("Approvals", str(len(st.session_state["pending_approvals"]))),
-        ("Clarify", "open" if st.session_state["pending_clarification"] else "none"),
-    ]
-    stats_html = "".join(
-        f"""
-        <div class="cb-compact-stat">
-          <span class="cb-compact-stat-label">{label}</span>
-          <span class="cb-compact-stat-value">{value}</span>
-        </div>
-        """
-        for label, value in cards
+    run_col, approvals_col, clarify_col = st.columns(3, gap="small")
+    run_col.caption("RUN")
+    run_col.markdown(f"<span class='cb-inline-stat-value'>{_shorten(st.session_state.get('active_run_id'), 18)}</span>", unsafe_allow_html=True)
+    approvals_col.caption("APPROVALS")
+    approvals_col.markdown(f"<span class='cb-inline-stat-value'>{len(st.session_state['pending_approvals'])}</span>", unsafe_allow_html=True)
+    clarify_col.caption("CLARIFY")
+    clarify_col.markdown(
+        f"<span class='cb-inline-stat-value'>{'open' if st.session_state['pending_clarification'] else 'none'}</span>",
+        unsafe_allow_html=True,
     )
-    st.markdown(f'<div class="cb-compact-stats">{stats_html}</div>', unsafe_allow_html=True)
 
 
 def render_session_panel(client: BackendClient) -> None:
@@ -965,25 +960,11 @@ def inject_css() -> None:
             font-size: 0.66rem;
             max-width: 28rem;
         }
-        .cb-compact-stats {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-top: 0.28rem;
-        }
-        .cb-compact-stat {
-            display: grid;
-            gap: 0;
-            min-width: 4.5rem;
-        }
-        .cb-compact-stat-label {
-            font-size: 0.58rem;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: var(--cb-muted);
-        }
-        .cb-compact-stat-value {
-            font-size: 0.74rem;
+        .cb-inline-stat-value {
+            display: inline-block;
+            margin-top: -0.35rem;
+            font-size: 0.78rem;
+            line-height: 1;
             color: var(--cb-text);
             font-weight: 600;
         }
