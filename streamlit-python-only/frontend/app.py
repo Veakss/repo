@@ -22,6 +22,7 @@ except ModuleNotFoundError:
 
 
 ClientFactory = Callable[[], BackendClient]
+PANEL_HEIGHT = 660
 
 
 def parse_tool_directive(raw_text: str, toggles: dict[str, bool]) -> tuple[str, dict[str, bool], str | None]:
@@ -892,10 +893,6 @@ def inject_css() -> None:
             --cb-success: #72d39b;
             --cb-danger: #ff7c7c;
         }
-        html, body, .stApp, [data-testid="stAppViewContainer"], .main {
-            height: 100vh;
-            overflow: hidden;
-        }
         .stApp {
             background:
                 radial-gradient(circle at top left, rgba(126, 203, 255, 0.08), transparent 24%),
@@ -910,8 +907,6 @@ def inject_css() -> None:
             display: none !important;
         }
         .block-container {
-            height: 100vh;
-            overflow: hidden;
             padding-top: 0.7rem;
             padding-bottom: 7rem;
             max-width: 1720px;
@@ -934,28 +929,19 @@ def inject_css() -> None:
         .st-key-center_panel {
             padding-bottom: 0.35rem;
         }
-        .st-key-left_panel,
-        .st-key-center_panel,
-        .st-key-right_panel {
-            height: calc(100vh - 15.5rem);
-            overflow: hidden;
-        }
-        .st-key-left_panel > div,
-        .st-key-center_panel > div,
-        .st-key-right_panel > div {
-            height: 100%;
-            overflow-y: auto;
-            overflow-x: hidden;
+        .st-key-left_panel [data-testid="stVerticalBlock"],
+        .st-key-center_panel [data-testid="stVerticalBlock"],
+        .st-key-right_panel [data-testid="stVerticalBlock"] {
             padding-right: 0.22rem;
         }
-        .st-key-left_panel > div::-webkit-scrollbar,
-        .st-key-center_panel > div::-webkit-scrollbar,
-        .st-key-right_panel > div::-webkit-scrollbar {
+        .st-key-left_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar,
+        .st-key-center_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar,
+        .st-key-right_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar {
             width: 9px;
         }
-        .st-key-left_panel > div::-webkit-scrollbar-thumb,
-        .st-key-center_panel > div::-webkit-scrollbar-thumb,
-        .st-key-right_panel > div::-webkit-scrollbar-thumb {
+        .st-key-left_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
+        .st-key-center_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
+        .st-key-right_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb {
             background: rgba(126, 203, 255, 0.18);
             border-radius: 999px;
             border: 2px solid transparent;
@@ -1224,26 +1210,6 @@ def inject_css() -> None:
             }
         }
         @media (max-width: 900px) {
-            .st-key-left_panel,
-            .st-key-center_panel,
-            .st-key-right_panel {
-                height: auto;
-                max-height: none;
-            }
-            .st-key-left_panel > div,
-            .st-key-center_panel > div,
-            .st-key-right_panel > div {
-                height: auto;
-                overflow: visible;
-                padding-right: 0;
-            }
-            .block-container,
-            .stApp,
-            [data-testid="stAppViewContainer"],
-            .main {
-                overflow: auto;
-                height: auto;
-            }
             .st-key-floating_tools {
                 left: 50%;
                 transform: translateX(-50%);
@@ -1278,13 +1244,13 @@ def run_app(client_factory: ClientFactory | None = None) -> None:
 
     rail, center, inspector = st.columns([1, 2, 1], gap="large")
     with rail:
-        with st.container(key="left_panel"):
+        with st.container(key="left_panel", height=PANEL_HEIGHT, border=False):
             render_session_panel(client)
     with center:
-        with st.container(key="center_panel"):
+        with st.container(key="center_panel", height=PANEL_HEIGHT, border=False):
             render_chat_panel(client)
     with inspector:
-        with st.container(key="right_panel"):
+        with st.container(key="right_panel", height=PANEL_HEIGHT, border=False):
             render_status_panels(client)
     render_floating_tool_access()
 
