@@ -326,16 +326,10 @@ def render_notice() -> None:
 
 
 def render_shell_stats() -> None:
-    run_col, approvals_col, clarify_col = st.columns(3, gap="small")
-    run_col.caption("RUN")
-    run_col.markdown(f"<span class='cb-inline-stat-value'>{_shorten(st.session_state.get('active_run_id'), 18)}</span>", unsafe_allow_html=True)
-    approvals_col.caption("APPROVALS")
-    approvals_col.markdown(f"<span class='cb-inline-stat-value'>{len(st.session_state['pending_approvals'])}</span>", unsafe_allow_html=True)
-    clarify_col.caption("CLARIFY")
-    clarify_col.markdown(
-        f"<span class='cb-inline-stat-value'>{'open' if st.session_state['pending_clarification'] else 'none'}</span>",
-        unsafe_allow_html=True,
-    )
+    run_value = _shorten(st.session_state.get("active_run_id"), 14)
+    approvals_value = str(len(st.session_state["pending_approvals"]))
+    clarify_value = "open" if st.session_state["pending_clarification"] else "none"
+    st.caption(f"Run {run_value} · Approvals {approvals_value} · Clarify {clarify_value}")
 
 
 def render_session_panel(client: BackendClient) -> None:
@@ -415,14 +409,16 @@ def render_header() -> None:
     if st.session_state["selected_model"] not in model_labels:
         st.session_state["selected_model"] = model_labels[0]
 
-    title_col, meta_col = st.columns([1.1, 1.15], gap="medium")
+    title_col, model_col, policy_col, controls_col = st.columns([1.35, 1.0, 1.0, 0.28], gap="small", vertical_alignment="center")
     with title_col:
-        st.markdown('<div class="cb-title-block"><h1>Continue Better</h1><p>Python control plane with a cleaner shell and JS-parity runtime controls</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="cb-title-block"><h1>Continue Better</h1></div>', unsafe_allow_html=True)
         render_shell_stats()
-    with meta_col:
-        control_a, control_b = st.columns(2)
-        control_a.selectbox("Model", options=model_labels, key="selected_model")
-        control_b.selectbox(
+    with model_col:
+        st.caption("MODEL")
+        st.selectbox("Model", options=model_labels, key="selected_model", label_visibility="collapsed")
+    with policy_col:
+        st.caption("POLICY")
+        st.selectbox(
             "Policy",
             options=["ask_when_necessary", "always_ask", "always_allow"],
             key="policy_profile",
@@ -431,32 +427,33 @@ def render_header() -> None:
                 "always_ask": "Always Ask",
                 "always_allow": "Always Allow",
             }.get(value, value),
-        )
-        badges = []
-        if capabilities.get("webSearch"):
-            badges.append("Web")
-        if capabilities.get("rag"):
-            badges.append("RAG")
-        if capabilities.get("interactiveTerminal"):
-            badges.append("Terminal")
-        if capabilities.get("clarification"):
-            badges.append("Clarification")
-        st.markdown(
-            f'<div class="cb-capability-row">{"".join(f"<span class=\"cb-capability-pill\">{badge}</span>" for badge in badges) or "<span class=\"cb-capability-pill\">No capabilities</span>"}</div>',
-            unsafe_allow_html=True,
-        )
-    controls_left, controls_right = st.columns([1.6, 0.68], gap="medium")
-    with controls_left:
-        st.markdown('<div class="cb-subtle-note">Directives: <code>/rag</code>, <code>/web</code>, <code>/apps</code>, <code>/clarify</code> force the matching orchestration mode for one run.</div>', unsafe_allow_html=True)
-    with controls_right:
-        st.markdown("##### Timeline")
-        st.selectbox(
-            "Timeline",
-            options=["all", "errors", "approvals", "terminal", "files"],
-            key="timeline_filter",
-            format_func=lambda value: value.title(),
             label_visibility="collapsed",
         )
+    with controls_col:
+        st.caption(" ")
+        with st.popover("More", use_container_width=True):
+            st.caption("Timeline")
+            st.selectbox(
+                "Timeline",
+                options=["all", "errors", "approvals", "terminal", "files"],
+                key="timeline_filter",
+                format_func=lambda value: value.title(),
+                label_visibility="collapsed",
+            )
+            badges = []
+            if capabilities.get("webSearch"):
+                badges.append("Web")
+            if capabilities.get("rag"):
+                badges.append("RAG")
+            if capabilities.get("interactiveTerminal"):
+                badges.append("Terminal")
+            if capabilities.get("clarification"):
+                badges.append("Clarification")
+            if badges:
+                st.caption("Capabilities")
+                st.markdown(" · ".join(badges))
+            st.caption("Directives")
+            st.markdown("`/rag` `/web` `/apps` `/clarify`")
     st.markdown('<div class="cb-header-divider"></div>', unsafe_allow_html=True)
 
 
@@ -925,8 +922,8 @@ def inject_css() -> None:
             backdrop-filter: blur(16px);
         }
         .st-key-header_shell {
-            margin-bottom: 0.45rem;
-            padding: 0.38rem 0.72rem 0.34rem 0.72rem;
+            margin-bottom: 0.38rem;
+            padding: 0.28rem 0.62rem 0.26rem 0.62rem;
         }
         .st-key-center_panel {
             padding-bottom: 0.35rem;
@@ -950,7 +947,7 @@ def inject_css() -> None:
             background-clip: padding-box;
         }
         .cb-title-block h1 {
-            font-size: 1.5rem !important;
+            font-size: 1.34rem !important;
             line-height: 0.92 !important;
             margin: 0 !important;
         }
@@ -1039,7 +1036,7 @@ def inject_css() -> None:
         .cb-header-divider {
             width: 100%;
             height: 1px;
-            margin: 0.12rem 0 0 0;
+            margin: 0.08rem 0 0 0;
             background: linear-gradient(90deg, rgba(255,255,255,0.09), rgba(126,203,255,0.22), rgba(255,255,255,0.02));
         }
         .cb-subtle-note {
@@ -1062,7 +1059,7 @@ def inject_css() -> None:
             font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif !important;
         }
         h1 {
-            font-size: 1.5rem !important;
+            font-size: 1.34rem !important;
             line-height: 0.95 !important;
             margin-bottom: 0 !important;
         }
@@ -1105,6 +1102,11 @@ def inject_css() -> None:
             font-size: 0.64rem;
             text-transform: uppercase;
             letter-spacing: 0.06em;
+        }
+        [data-testid="stPopover"] > button {
+            min-height: 2.25rem;
+            font-size: 0.86rem;
+            border-radius: 14px;
         }
         .stButton > button, .stDownloadButton > button {
             border-radius: 14px;
@@ -1209,7 +1211,7 @@ def inject_css() -> None:
         }
         @media (max-width: 1200px) {
             .cb-title-block h1 {
-                font-size: 1.34rem !important;
+                font-size: 1.18rem !important;
             }
             [data-testid="stChatInput"] {
                 width: min(64vw, 900px);
