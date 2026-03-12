@@ -22,7 +22,7 @@ except ModuleNotFoundError:
 
 
 ClientFactory = Callable[[], BackendClient]
-PANEL_HEIGHT = 720
+PANEL_HEIGHT = 760
 
 
 def parse_tool_directive(raw_text: str, toggles: dict[str, bool]) -> tuple[str, dict[str, bool], str | None]:
@@ -420,7 +420,7 @@ def render_header() -> None:
     if st.session_state["selected_model"] not in model_labels:
         st.session_state["selected_model"] = model_labels[0]
 
-    title_col, meta_col = st.columns([1.02, 1.18], gap="large")
+    title_col, meta_col = st.columns([1.1, 1.15], gap="medium")
     with title_col:
         st.markdown('<div class="cb-title-block"><h1>Continue Better</h1><p>Python control plane with a cleaner shell and JS-parity runtime controls</p></div>', unsafe_allow_html=True)
         render_shell_stats()
@@ -930,8 +930,8 @@ def inject_css() -> None:
             backdrop-filter: blur(16px);
         }
         .st-key-header_shell {
-            margin-bottom: 0.55rem;
-            padding: 0.55rem 0.8rem 0.45rem 0.8rem;
+            margin-bottom: 0.45rem;
+            padding: 0.38rem 0.72rem 0.34rem 0.72rem;
         }
         .st-key-center_panel {
             padding-bottom: 0.35rem;
@@ -955,34 +955,35 @@ def inject_css() -> None:
             background-clip: padding-box;
         }
         .cb-title-block h1 {
-            font-size: 1.75rem !important;
+            font-size: 1.5rem !important;
             line-height: 0.92 !important;
-            margin: 0 0 0.06rem 0 !important;
+            margin: 0 !important;
         }
         .cb-title-block p {
             margin: 0;
             color: var(--cb-muted);
-            font-size: 0.74rem;
-            max-width: 32rem;
+            font-size: 0.66rem;
+            max-width: 28rem;
         }
         .cb-compact-stats {
             display: flex;
-            gap: 0.7rem;
+            gap: 0.5rem;
             flex-wrap: wrap;
-            margin-top: 0.45rem;
+            margin-top: 0.28rem;
         }
         .cb-compact-stat {
             display: grid;
-            gap: 0.06rem;
+            gap: 0;
+            min-width: 4.5rem;
         }
         .cb-compact-stat-label {
-            font-size: 0.64rem;
+            font-size: 0.58rem;
             letter-spacing: 0.08em;
             text-transform: uppercase;
             color: var(--cb-muted);
         }
         .cb-compact-stat-value {
-            font-size: 0.88rem;
+            font-size: 0.74rem;
             color: var(--cb-text);
             font-weight: 600;
         }
@@ -1022,20 +1023,20 @@ def inject_css() -> None:
         .cb-capability-row {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 6px;
             justify-content: flex-end;
-            margin-top: 0.2rem;
+            margin-top: 0.08rem;
         }
         .cb-capability-pill {
             display: inline-flex;
             align-items: center;
-            min-height: 22px;
-            padding: 0 8px;
+            min-height: 19px;
+            padding: 0 7px;
             border-radius: 999px;
             border: 1px solid rgba(126,203,255,0.18);
             background: rgba(126,203,255,0.08);
             color: #cfe9ff;
-            font-size: 10px;
+            font-size: 9px;
         }
         .cb-notice {
             margin: 0 0 14px 0;
@@ -1057,19 +1058,19 @@ def inject_css() -> None:
         .cb-header-divider {
             width: 100%;
             height: 1px;
-            margin: 0.18rem 0 0 0;
+            margin: 0.12rem 0 0 0;
             background: linear-gradient(90deg, rgba(255,255,255,0.09), rgba(126,203,255,0.22), rgba(255,255,255,0.02));
         }
         .cb-subtle-note {
             color: var(--cb-muted);
-            font-size: 0.68rem;
-            line-height: 1.2;
+            font-size: 0.6rem;
+            line-height: 1.1;
         }
         .cb-subtle-note code {
             color: #9ce0ff;
             font-family: "IBM Plex Mono", ui-monospace, monospace;
             background: rgba(17, 168, 255, 0.08);
-            padding: 0.08rem 0.28rem;
+            padding: 0.04rem 0.22rem;
             border-radius: 999px;
             border: 1px solid rgba(17, 168, 255, 0.16);
         }
@@ -1080,14 +1081,14 @@ def inject_css() -> None:
             font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif !important;
         }
         h1 {
-            font-size: 1.75rem !important;
+            font-size: 1.5rem !important;
             line-height: 0.95 !important;
-            margin-bottom: 0.06rem !important;
+            margin-bottom: 0 !important;
         }
         h4 {
-            font-size: 0.78rem !important;
+            font-size: 0.72rem !important;
             letter-spacing: 0.03em;
-            margin-bottom: 0.25rem !important;
+            margin-bottom: 0.15rem !important;
         }
         [data-testid="stMarkdownContainer"] p,
         [data-testid="stCaptionContainer"] {
@@ -1120,7 +1121,7 @@ def inject_css() -> None:
         }
         [data-testid="stSelectbox"] > label,
         [data-testid="stTextInput"] > label {
-            font-size: 0.72rem;
+            font-size: 0.64rem;
             text-transform: uppercase;
             letter-spacing: 0.06em;
         }
@@ -1202,7 +1203,7 @@ def inject_css() -> None:
             color: rgba(214, 221, 230, 0.9) !important;
         }
         [data-testid="column"] {
-            min-height: calc(100vh - 12.2rem);
+            min-height: calc(100vh - 10.8rem);
         }
         .st-key-left_panel h3,
         .st-key-center_panel h3,
@@ -1227,7 +1228,7 @@ def inject_css() -> None:
         }
         @media (max-width: 1200px) {
             .cb-title-block h1 {
-                font-size: 1.58rem !important;
+                font-size: 1.34rem !important;
             }
             [data-testid="stChatInput"] {
                 width: min(64vw, 900px);
