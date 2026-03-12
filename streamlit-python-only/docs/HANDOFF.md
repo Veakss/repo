@@ -164,3 +164,12 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
 - the remaining Matrix failures are now answer-quality/contract issues, not backend plumbing failures
 - latest UI cleanup pass kept the full suite green: `39 passed`
 - latest UI implementation pass also kept targeted UI/runtime/backend/sidecar checks green: `25 passed`
+- latest UI reliability pass focused on live issues found through Chrome DevTools MCP:
+  - replaced the inspector panel selector with explicit Streamlit buttons to avoid fragile click targets
+  - suppressed the misleading `Session created` notice on the first implicit send
+  - added a visible `_Thinking…_` placeholder while chat responses stream
+  - set clarification forms to `clear_on_submit=True` and return the inspector to `Run` after resolution
+  - latest targeted checks stayed green: `25 passed`
+  - latest live browser smoke confirmed:
+    - a normal prompt send returns a real assistant reply
+    - the `Files` inspector panel opens and shows file preview content

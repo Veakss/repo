@@ -215,3 +215,12 @@
   - left/center/right panel framing
   - stronger blue primary overrides for buttons, chat input, and dock controls
   - verified `pytest tests/test_streamlit_app.py tests/test_runtime.py tests/test_backend_api.py tests/test_sidecar_api.py -q`: `25 passed`
+- completed a targeted UI reliability pass after live browser QA:
+  - inspector navigation no longer depends on heavily restyled radios; it now uses explicit Streamlit buttons
+  - first-message sends no longer surface a confusing `Session created` banner when the session is created implicitly
+  - chat sends show an immediate `_Thinking…_` placeholder before tokens arrive
+  - clarification forms now clear on submit and return the inspector to `Run` when the clarification is resolved
+  - verified `pytest tests/test_streamlit_app.py tests/test_runtime.py tests/test_backend_api.py tests/test_sidecar_api.py -q`: `25 passed`
+  - verified live through Chrome DevTools MCP:
+    - standard chat send returns a real assistant answer
+    - inspector `Files` panel is reachable and renders file preview content

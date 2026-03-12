@@ -22,7 +22,8 @@ except ModuleNotFoundError:
 
 
 ClientFactory = Callable[[], BackendClient]
-PANEL_HEIGHT = 760
+PANEL_HEIGHT = 700
+INSPECTOR_PANELS = ["Run", "Approvals", "Clarification", "Files", "RAG", "Terminal", "Matrix"]
 
 
 def parse_tool_directive(raw_text: str, toggles: dict[str, bool]) -> tuple[str, dict[str, bool], str | None]:
@@ -91,7 +92,7 @@ def ensure_state() -> None:
         "tool_toggle_rag": True,
         "tool_toggle_apps": True,
         "tool_toggle_clarification": True,
-        "inspector_panel": "Run",
+        "active_inspector_panel": "Run",
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -106,6 +107,12 @@ def get_client(client_factory: ClientFactory | None = None) -> BackendClient:
 def set_status(message: str | None = None, error: str | None = None) -> None:
     st.session_state["status_message"] = message
     st.session_state["ui_error"] = error
+
+
+def set_active_panel(panel: str) -> None:
+    if panel not in INSPECTOR_PANELS:
+        panel = "Run"
+    st.session_state["active_inspector_panel"] = panel
 
 
 def refresh_bootstrap(client: BackendClient) -> None:
@@ -146,9 +153,9 @@ def refresh_session_state(client: BackendClient, session_id: str | None) -> None
     st.session_state["pending_approvals"] = approvals
     st.session_state["pending_clarification"] = clarification
     if clarification:
-        st.session_state["inspector_panel"] = "Clarification"
+        set_active_panel("Clarification")
     elif approvals:
-        st.session_state["inspector_panel"] = "Approvals"
+        set_active_panel("Approvals")
 
 
 def refresh_files(client: BackendClient) -> None:
@@ -186,11 +193,11 @@ def consume_events(client: BackendClient, session_id: str, events: list[dict[str
     st.session_state["pending_approvals"] = approvals
     st.session_state["pending_clarification"] = clarification
     if clarification:
-        st.session_state["inspector_panel"] = "Clarification"
+        set_active_panel("Clarification")
     elif approvals:
-        st.session_state["inspector_panel"] = "Approvals"
+        set_active_panel("Approvals")
     elif any(event.get("type") == "terminal_opened" for event in events):
-        st.session_state["inspector_panel"] = "Terminal"
+        set_active_panel("Terminal")
     for event in reversed(events):
         run_id = event.get("runId")
         if isinstance(run_id, str) and run_id:
@@ -247,20 +254,21 @@ def refresh_matrix_state(client: BackendClient) -> None:
         pass
 
 
-def create_session(client: BackendClient, title: str | None = None) -> None:
+def create_session(client: BackendClient, title: str | None = None, *, announce: bool = True) -> None:
     created = client.create_session(title)
     st.session_state["session_id"] = created["session_id"]
     refresh_bootstrap(client)
     refresh_session_state(client, st.session_state["session_id"])
     refresh_rag_state(client)
     refresh_matrix_state(client)
-    set_status(message="Session created")
+    if announce:
+        set_status(message="Session created")
 
 
 def on_send(prompt: str, client: BackendClient) -> None:
     session_id = st.session_state["session_id"]
     if not session_id:
-        create_session(client, "New session")
+        create_session(client, "New session", announce=False)
         session_id = st.session_state["session_id"]
     assert session_id is not None
 
@@ -277,16 +285,23 @@ def on_send(prompt: str, client: BackendClient) -> None:
     }
     events: list[dict[str, Any]] = []
     assistant_text = ""
+    set_active_panel("Run")
     st.session_state["messages"].append({"role": "user", "content": cleaned_prompt})
     with st.chat_message("assistant"):
         placeholder = st.empty()
-        for event in client.stream_chat(payload):
-            events.append(event)
-            if event.get("type") == "token":
-                assistant_text += event.get("token", "")
-                placeholder.markdown(assistant_text)
+        placeholder.markdown("_Thinking…_")
+        try:
+            for event in client.stream_chat(payload):
+                events.append(event)
+                if event.get("type") == "token":
+                    assistant_text += event.get("token", "")
+                    placeholder.markdown(assistant_text)
+        except Exception as exc:
+            placeholder.markdown("_The run failed before a response was rendered._")
+            set_status(error=f"Chat run failed: {exc}")
+            raise
         if not assistant_text:
-            placeholder.markdown("_Waiting for tool result or approval._")
+            placeholder.markdown("_Waiting for a tool result, approval, or clarification._")
     consume_events(client, session_id, events, assistant_text=assistant_text or None)
     set_status(message="Run completed" if assistant_text else "Run paused for action")
 
@@ -298,6 +313,8 @@ def respond_to_approval(client: BackendClient, approval_id: str, decision: str) 
     events = list(client.stream_approval(approval_id, decision))
     assistant_text = "".join(event.get("token", "") for event in events if event.get("type") == "token").strip()
     consume_events(client, session_id, events, assistant_text=assistant_text or None)
+    if not st.session_state["pending_approvals"] and not st.session_state["pending_clarification"]:
+        set_active_panel("Run")
     set_status(message=f"Approval {decision}")
 
 
@@ -308,6 +325,8 @@ def respond_to_clarification(client: BackendClient, clarification_id: str, answe
     events = list(client.stream_clarification(clarification_id, answer))
     assistant_text = "".join(event.get("token", "") for event in events if event.get("type") == "token").strip()
     consume_events(client, session_id, events, assistant_text=assistant_text or None)
+    if not st.session_state["pending_clarification"]:
+        set_active_panel("Run")
     set_status(message="Clarification sent")
 
 
@@ -534,7 +553,7 @@ def render_clarification_panel(client: BackendClient) -> None:
     if options:
         st.caption("Quick options")
         st.write(" | ".join(options))
-    with st.form("clarification_form"):
+    with st.form("clarification_form", clear_on_submit=True):
         answer = st.text_area("Answer", value="")
         submitted = st.form_submit_button("Send Clarification", use_container_width=True)
     if submitted and answer.strip():
@@ -849,13 +868,26 @@ def render_matrix_panel(client: BackendClient) -> None:
 
 def render_status_panels(client: BackendClient) -> None:
     st.markdown("#### Inspector")
-    panel = st.radio(
-        "Inspector panel",
-        options=["Run", "Approvals", "Clarification", "Files", "RAG", "Terminal", "Matrix"],
-        key="inspector_panel",
-        horizontal=True,
-        label_visibility="collapsed",
-    )
+    current_panel = st.session_state.get("active_inspector_panel", "Run")
+    if current_panel not in INSPECTOR_PANELS:
+        current_panel = "Run"
+
+    first_row = INSPECTOR_PANELS[:4]
+    second_row = INSPECTOR_PANELS[4:]
+    for row_index, row in enumerate((first_row, second_row), start=1):
+        cols = st.columns(len(row), gap="small")
+        for col, panel_name in zip(cols, row, strict=False):
+            if col.button(
+                panel_name,
+                key=f"inspector-tab-{row_index}-{panel_name}",
+                use_container_width=True,
+                type="primary" if panel_name == current_panel else "secondary",
+            ):
+                set_active_panel(panel_name)
+                st.rerun()
+
+    panel = current_panel
+
     if panel == "Run":
         render_timeline_panel()
     elif panel == "Approvals":
@@ -876,29 +908,42 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
         :root {
-            --primary-color: #11a8ff;
-            --cb-bg-0: #071019;
-            --cb-bg-1: rgba(10, 18, 28, 0.88);
-            --cb-bg-2: rgba(14, 22, 34, 0.76);
-            --cb-border: rgba(255,255,255,0.08);
-            --cb-text: #ecf2f8;
-            --cb-muted: rgba(197, 209, 223, 0.72);
-            --cb-accent: #7ecbff;
-            --cb-accent-soft: rgba(126, 203, 255, 0.16);
-            --cb-electric: #11a8ff;
-            --cb-electric-strong: #0d74ff;
-            --cb-success: #72d39b;
-            --cb-danger: #ff7c7c;
+            --bg: #0a0d12;
+            --panel: #11151c;
+            --glass-surface: rgba(28, 34, 42, 0.6);
+            --border: #263042;
+            --text: #e6ebf2;
+            --text-muted: #97a3b6;
+            --accent: #1e7d6f;
+            --accent-2: #166357;
+            --accent-muted: rgba(45, 212, 191, 0.08);
+            --error: #EF4444;
+            --ok: #10B981;
+            --warn: #F59E0B;
         }
         .stApp {
             background:
                 radial-gradient(circle at top left, rgba(126, 203, 255, 0.08), transparent 24%),
                 radial-gradient(circle at bottom right, rgba(114, 211, 155, 0.06), transparent 18%),
                 linear-gradient(180deg, #071019 0%, #0a1220 56%, #0d1622 100%);
-            color: var(--cb-text);
-            font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+            color: var(--text);
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden !important; /* Prevent scrolling on the main body */
+            height: 100vh;
+        }
+        .stApp::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.06;
+            background-image:
+                repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 2px),
+                repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 2px);
         }
         [data-testid="stSidebar"],
         [data-testid="collapsedControl"],
@@ -907,53 +952,101 @@ def inject_css() -> None:
         }
         .block-container {
             padding-top: 0.7rem;
-            padding-bottom: 7rem;
-            max-width: 1720px;
+            padding-bottom: 0;
+            max-width: 100%;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            position: relative;
+            z-index: 1;
+            height: 100vh;
+            overflow: hidden;
         }
-        .st-key-header_shell,
         .st-key-left_panel,
         .st-key-center_panel,
         .st-key-right_panel {
-            background: linear-gradient(180deg, rgba(10, 18, 28, 0.76), rgba(8, 14, 22, 0.6));
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 24px;
-            padding: 0.85rem 0.9rem 0.95rem 0.9rem;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+            position: relative;
+            background: var(--glass-surface);
+            border: 1px solid rgba(148, 163, 184, 0.08);
+            border-radius: 12px;
+            padding: 0.65rem 0.7rem 0.75rem 0.7rem;
+            box-shadow:
+                0 20px 40px rgba(2, 6, 23, 0.28),
+                0 8px 18px rgba(2, 6, 23, 0.16);
             backdrop-filter: blur(16px);
+            height: calc(100vh - 10rem) !important;
+            max-height: calc(100vh - 10rem) !important; /* Force max height */
+            min-height: 0 !important;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        .st-key-left_panel > div[data-testid="stVerticalBlock"],
+        .st-key-center_panel > div[data-testid="stVerticalBlock"],
+        .st-key-right_panel > div[data-testid="stVerticalBlock"] {
+            height: 100%;
+            overflow-y: auto; /* Enable scrolling on the inner container */
+            padding-right: 0.4rem;
         }
         .st-key-header_shell {
-            margin-bottom: 0.38rem;
+            position: relative;
+            background: var(--glass-surface);
+            border: 1px solid rgba(148, 163, 184, 0.08);
+            border-radius: 12px;
             padding: 0.28rem 0.62rem 0.26rem 0.62rem;
+            box-shadow:
+                0 20px 40px rgba(2, 6, 23, 0.28),
+                0 8px 18px rgba(2, 6, 23, 0.16);
+            backdrop-filter: blur(16px);
+            margin-bottom: 0.38rem;
+        }
+        .st-key-header_shell::before,
+        .st-key-left_panel::before,
+        .st-key-center_panel::before,
+        .st-key-right_panel::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 14px;
+            right: 14px;
+            height: 1px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 18%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0.08) 82%, transparent 100%);
+            pointer-events: none;
         }
         .st-key-center_panel {
-            padding-bottom: 0.35rem;
+            padding-bottom: 0;
+            display: flex;
+            flex-direction: column;
         }
-        .st-key-left_panel [data-testid="stVerticalBlock"],
-        .st-key-center_panel [data-testid="stVerticalBlock"],
-        .st-key-right_panel [data-testid="stVerticalBlock"] {
-            padding-right: 0.22rem;
+        .st-key-left_panel,
+        .st-key-center_panel,
+        .st-key-right_panel {
+            padding-right: 0.4rem;
         }
         .st-key-left_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar,
         .st-key-center_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar,
         .st-key-right_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar {
-            width: 9px;
+            width: 4px;
         }
         .st-key-left_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
         .st-key-center_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
         .st-key-right_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb {
-            background: rgba(126, 203, 255, 0.18);
-            border-radius: 999px;
-            border: 2px solid transparent;
-            background-clip: padding-box;
+            background: transparent;
+            border-radius: 4px;
+        }
+        .st-key-left_panel [data-testid="stVerticalBlock"]:hover::-webkit-scrollbar-thumb,
+        .st-key-center_panel [data-testid="stVerticalBlock"]:hover::-webkit-scrollbar-thumb,
+        .st-key-right_panel [data-testid="stVerticalBlock"]:hover::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
         }
         .cb-title-block h1 {
             font-size: 1.34rem !important;
             line-height: 0.92 !important;
             margin: 0 !important;
+            font-weight: 600 !important;
         }
         .cb-title-block p {
             margin: 0;
-            color: var(--cb-muted);
+            color: var(--text-muted);
             font-size: 0.66rem;
             max-width: 28rem;
         }
@@ -962,101 +1055,74 @@ def inject_css() -> None:
             margin-top: -0.35rem;
             font-size: 0.78rem;
             line-height: 1;
-            color: var(--cb-text);
+            color: var(--text);
             font-weight: 600;
         }
         [data-testid="stChatMessage"] {
-            background: linear-gradient(180deg, rgba(16,25,38,0.92), rgba(14,22,34,0.82));
-            border: 1px solid var(--cb-border);
-            border-radius: 18px;
+            background: rgba(17, 21, 28, 0.82);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            border-radius: 12px;
             backdrop-filter: blur(14px);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
-            margin-bottom: 0.55rem;
+            box-shadow: 0 18px 40px rgba(2, 6, 23, 0.24);
+            margin-bottom: 0.45rem;
+            padding: 0.8rem 1rem;
         }
         [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
-            font-size: 1rem;
+            font-size: 0.85rem;
         }
         [data-testid="stChatMessageContent"] p {
-            line-height: 1.6;
+            line-height: 1.5;
         }
         .cb-mini-card {
             display: grid;
             gap: 0.22rem;
             padding: 0.85rem 0.95rem;
             margin: 0.25rem 0 0.8rem 0;
-            border-radius: 18px;
-            background: rgba(255,255,255,0.035);
-            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.015);
+            border: 1px solid rgba(148,163,184,0.12);
         }
         .cb-mini-label {
             text-transform: uppercase;
             letter-spacing: 0.08em;
             font-size: 0.68rem;
-            color: var(--cb-muted);
+            color: var(--text-muted);
         }
         .cb-mini-meta {
-            color: var(--cb-muted);
+            color: var(--text-muted);
             font-size: 0.85rem;
-        }
-        .cb-capability-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            justify-content: flex-end;
-            margin-top: 0.08rem;
-        }
-        .cb-capability-pill {
-            display: inline-flex;
-            align-items: center;
-            min-height: 19px;
-            padding: 0 7px;
-            border-radius: 999px;
-            border: 1px solid rgba(126,203,255,0.18);
-            background: rgba(126,203,255,0.08);
-            color: #cfe9ff;
-            font-size: 9px;
         }
         .cb-notice {
             margin: 0 0 14px 0;
             padding: 12px 14px;
-            border-radius: 16px;
-            border: 1px solid var(--cb-border);
-            font-size: 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-size: 13px;
+            box-shadow: 0 16px 36px rgba(2, 6, 23, 0.32);
         }
         .cb-notice-success {
-            background: rgba(114,211,155,0.12);
-            border-color: rgba(114,211,155,0.22);
-            color: #baf0cf;
+            background: rgba(16, 185, 129, 0.12);
+            border-color: rgba(16, 185, 129, 0.22);
+            color: #a7f3d0;
         }
         .cb-notice-error {
-            background: rgba(255,124,124,0.12);
-            border-color: rgba(255,124,124,0.24);
-            color: #ffd1d1;
+            background: rgba(239, 68, 68, 0.12);
+            border-color: rgba(239, 68, 68, 0.24);
+            color: #fecaca;
         }
         .cb-header-divider {
             width: 100%;
             height: 1px;
             margin: 0.08rem 0 0 0;
-            background: linear-gradient(90deg, rgba(255,255,255,0.09), rgba(126,203,255,0.22), rgba(255,255,255,0.02));
-        }
-        .cb-subtle-note {
-            color: var(--cb-muted);
-            font-size: 0.6rem;
-            line-height: 1.1;
-        }
-        .cb-subtle-note code {
-            color: #9ce0ff;
-            font-family: "IBM Plex Mono", ui-monospace, monospace;
-            background: rgba(17, 168, 255, 0.08);
-            padding: 0.04rem 0.22rem;
-            border-radius: 999px;
-            border: 1px solid rgba(17, 168, 255, 0.16);
+            background: linear-gradient(90deg, rgba(148,163,184,0.08), rgba(148,163,184,0.18), rgba(148,163,184,0.08));
         }
         .cb-chat-bottom-spacer {
-            height: 6.8rem;
+            height: 18rem;
+            flex-shrink: 0;
+            width: 100%;
         }
         h1, h2, h3, h4, label, [data-testid="stMetricLabel"] {
-            font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif !important;
+            font-family: "Inter", ui-sans-serif, system-ui, sans-serif !important;
         }
         h1 {
             font-size: 1.34rem !important;
@@ -1067,35 +1133,45 @@ def inject_css() -> None:
             font-size: 0.72rem !important;
             letter-spacing: 0.03em;
             margin-bottom: 0.15rem !important;
+            color: var(--text-muted);
+            text-transform: uppercase;
         }
         [data-testid="stMarkdownContainer"] p,
         [data-testid="stCaptionContainer"] {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
         [data-testid="stMarkdownContainer"] p {
-            color: var(--cb-text);
+            color: var(--text);
         }
         [data-baseweb="input"] > div,
         [data-baseweb="select"] > div,
         [data-testid="stTextInput"] input,
         [data-testid="stTextArea"] textarea {
-            background: rgba(4, 10, 18, 0.72) !important;
-            border-color: rgba(255,255,255,0.08) !important;
-            color: var(--cb-text) !important;
-            border-radius: 14px !important;
+            background: rgba(8, 12, 18, 0.7) !important;
+            border-color: rgba(148, 163, 184, 0.22) !important;
+            color: var(--text) !important;
+            border-radius: 10px !important;
+            transition: border-color 140ms ease, box-shadow 140ms ease;
+        }
+        [data-baseweb="input"] > div:focus-within,
+        [data-baseweb="select"] > div:focus-within,
+        [data-testid="stTextInput"] input:focus,
+        [data-testid="stTextArea"] textarea:focus {
+            border-color: rgba(45, 212, 191, 0.45) !important;
+            box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.14) !important;
         }
         [data-testid="stTextInput"] label,
         [data-testid="stSelectbox"] label,
         [data-testid="stMultiSelect"] label,
         [data-testid="stTextArea"] label,
         [data-testid="stNumberInput"] label {
-            color: var(--cb-muted) !important;
+            color: var(--text-muted) !important;
         }
         [data-baseweb="select"] svg,
         [data-baseweb="input"] svg,
         .st-emotion-cache-1umgz6k svg {
-            color: var(--cb-electric) !important;
-            fill: var(--cb-electric) !important;
+            color: var(--text-muted) !important;
+            fill: var(--text-muted) !important;
         }
         [data-testid="stSelectbox"] > label,
         [data-testid="stTextInput"] > label {
@@ -1104,50 +1180,84 @@ def inject_css() -> None:
             letter-spacing: 0.06em;
         }
         [data-testid="stPopover"] > button {
-            min-height: 2.25rem;
-            font-size: 0.86rem;
-            border-radius: 14px;
+            min-height: 2rem;
+            font-size: 0.8rem;
+            border-radius: 8px;
         }
         .stButton > button, .stDownloadButton > button {
-            border-radius: 14px;
-            border: 1px solid rgba(255,255,255,0.08);
-            background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
-            color: var(--cb-text);
-            font-weight: 600;
-            min-height: 2.55rem;
-            font-size: 0.94rem;
+            border-radius: 8px;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: rgba(18, 24, 34, 0.62);
+            color: var(--text);
+            font-weight: 500;
+            min-height: 2.2rem;
+            font-size: 0.85rem;
+            transition: all 0.15s ease-out;
+        }
+        .stButton > button:hover {
+            background: var(--accent-muted) !important;
+            border-color: rgba(45, 212, 191, 0.28) !important;
+            color: var(--text) !important;
+        }
+        .stButton > button:active {
+            transform: scale(0.97);
         }
         .stButton > button[kind="primary"] {
-            background: linear-gradient(180deg, rgba(17, 168, 255, 0.74), rgba(13, 116, 255, 0.48)) !important;
-            border-color: rgba(78, 201, 255, 0.86) !important;
-            box-shadow: 0 0 0 1px rgba(17, 168, 255, 0.14), 0 0 18px rgba(17, 168, 255, 0.14);
+            background: linear-gradient(180deg, rgba(30, 125, 111, 0.82), rgba(22, 99, 87, 0.58)) !important;
+            border-color: rgba(45, 212, 191, 0.48) !important;
+            box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.14), 0 0 18px rgba(45, 212, 191, 0.14);
+        }
+        .stButton > button[kind="primary"]:hover {
+            background: linear-gradient(180deg, rgba(30, 125, 111, 0.95), rgba(22, 99, 87, 0.75)) !important;
         }
         [data-testid="stChatInput"] {
-            position: fixed;
-            left: 50%;
-            bottom: 1rem;
-            transform: translateX(-50%);
-            width: min(48vw, 860px);
-            z-index: 999;
-            background: linear-gradient(180deg, rgba(7, 15, 24, 0.94), rgba(7, 15, 24, 0.82));
-            padding: 0.58rem 0.68rem;
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 18px 50px rgba(0,0,0,0.34);
-            backdrop-filter: blur(18px);
+            position: fixed !important;
+            left: 50% !important;
+            bottom: 1.5rem !important;
+            transform: translateX(-50%) !important;
+            width: min(48vw, 860px) !important;
+            z-index: 9999 !important;
+            background: var(--glass-surface) !important;
+            padding: 0.4rem 0.5rem !important;
+            border-radius: 16px !important;
+            border: 1px solid rgba(148, 163, 184, 0.08) !important;
+            box-shadow:
+                0 20px 40px rgba(2, 6, 23, 0.28),
+                0 8px 18px rgba(2, 6, 23, 0.16),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+            backdrop-filter: blur(18px) !important;
+            transition: border-color 0.2s !important;
+            display: flex !important;
+        }
+        [data-testid="stChatInput"]::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 14px;
+            right: 14px;
+            height: 1px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 18%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0.08) 82%, transparent 100%);
+            pointer-events: none;
+        }
+        [data-testid="stChatInput"]:focus-within {
+            border-color: rgba(45, 212, 191, 0.35);
         }
         [data-testid="stChatInput"] > div {
-            border-color: rgba(17, 168, 255, 0.32) !important;
-            box-shadow: 0 0 0 1px rgba(17, 168, 255, 0.1), 0 0 22px rgba(17, 168, 255, 0.12);
+            border: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
         }
         [data-testid="stChatInput"] textarea,
         [data-testid="stChatInput"] input {
             background: transparent !important;
+            color: var(--text) !important;
         }
         [data-testid="stChatInput"] button {
-            background: linear-gradient(180deg, rgba(17, 168, 255, 0.82), rgba(13, 116, 255, 0.58)) !important;
-            border-color: rgba(78, 201, 255, 0.9) !important;
+            background: linear-gradient(180deg, rgba(30, 125, 111, 0.82), rgba(22, 99, 87, 0.58)) !important;
+            border-color: rgba(45, 212, 191, 0.48) !important;
             color: white !important;
+            border-radius: 8px;
         }
         [data-testid="stChatInput"] button svg {
             fill: white !important;
@@ -1156,58 +1266,88 @@ def inject_css() -> None:
         .st-key-floating_tools {
             position: fixed;
             left: calc(50% + min(24vw, 430px) + 1rem);
-            bottom: 1rem;
+            bottom: 1.5rem;
             width: min(18rem, calc(100vw - (50% + min(24vw, 430px) + 2rem)));
             z-index: 998;
         }
         .st-key-floating_tools > div {
-            background: linear-gradient(180deg, rgba(7, 15, 24, 0.94), rgba(7, 15, 24, 0.82));
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 18px 50px rgba(0,0,0,0.26);
+            background: var(--glass-surface);
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.08);
+            box-shadow:
+                0 20px 40px rgba(2, 6, 23, 0.28),
+                0 8px 18px rgba(2, 6, 23, 0.16);
             backdrop-filter: blur(18px);
-            padding: 0.45rem;
+            padding: 0.35rem;
         }
         .st-key-floating_tools .stButton > button {
-            min-height: 2.35rem;
-            border-radius: 13px;
-            font-size: 0.88rem;
-            padding: 0.15rem 0.35rem;
+            min-height: 2rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            padding: 0.1rem 0.25rem;
         }
         .st-key-floating_tools .stButton > button[kind="primary"] {
-            background: linear-gradient(180deg, rgba(0, 170, 255, 0.82), rgba(0, 110, 255, 0.58)) !important;
-            border-color: rgba(65, 196, 255, 0.98) !important;
-            color: #f2f8ff !important;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 18px rgba(0, 149, 255, 0.28);
+            background: linear-gradient(180deg, rgba(16, 185, 129, 0.11), rgba(16, 185, 129, 0.06)) !important;
+            border-color: rgba(16, 185, 129, 0.18) !important;
+            color: #d1fae5 !important;
+            box-shadow: none !important;
         }
         .st-key-floating_tools .stButton > button[kind="secondary"] {
-            background: rgba(120, 130, 145, 0.14) !important;
-            border-color: rgba(169, 179, 193, 0.18) !important;
-            color: rgba(214, 221, 230, 0.9) !important;
+            background: transparent !important;
+            border-color: transparent !important;
+            color: var(--text-muted) !important;
+        }
+        .st-key-floating_tools .stButton > button[kind="secondary"]:hover {
+            background: rgba(148, 163, 184, 0.07) !important;
+            border-color: rgba(148, 163, 184, 0.12) !important;
+            color: var(--text) !important;
+        }
+        [data-testid="stBottomBlockContainer"] {
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+        }
+        [data-testid="stBottomBlockContainer"]::before {
+            display: none !important;
         }
         [data-testid="column"] {
-            min-height: calc(100vh - 10.8rem);
+            min-height: 0;
+            height: 100%;
         }
         .st-key-left_panel h3,
         .st-key-center_panel h3,
         .st-key-right_panel h3 {
             margin-top: 0.2rem;
         }
-        .st-key-right_panel [data-testid="stRadio"] {
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 16px;
-            padding: 0.65rem 0.75rem 0.15rem 0.75rem;
-            background: rgba(255,255,255,0.025);
-        }
-        [data-testid="stRadio"] label p,
-        [data-testid="stCheckbox"] label p {
-            color: var(--cb-text) !important;
-        }
-        [data-testid="stRadio"] {
+        .st-key-right_panel [data-testid="stHorizontalBlock"] .stButton > button {
             margin-bottom: 0.8rem;
+            min-height: 2rem;
+            font-size: 0.78rem;
         }
         [data-testid="stCodeBlock"] pre, code, .stCodeBlock {
             font-family: "IBM Plex Mono", ui-monospace, monospace !important;
+        }
+        /* Expander styling */
+        [data-testid="stExpander"] {
+            border: 1px solid rgba(148, 163, 184, 0.12) !important;
+            border-radius: 12px !important;
+            background: rgba(255, 255, 255, 0.015) !important;
+            overflow: hidden;
+        }
+        [data-testid="stExpander"] summary {
+            background: transparent !important;
+            padding: 0.6rem 0.8rem !important;
+            font-weight: 600 !important;
+            font-size: 0.85rem !important;
+            color: var(--text) !important;
+        }
+        [data-testid="stExpander"] summary:hover {
+            background: rgba(255, 255, 255, 0.03) !important;
+        }
+        [data-testid="stExpanderDetails"] {
+            padding: 0.8rem !important;
+            border-top: 1px solid rgba(148, 163, 184, 0.08);
         }
         @media (max-width: 1200px) {
             .cb-title-block h1 {
@@ -1218,7 +1358,7 @@ def inject_css() -> None:
             }
             .st-key-floating_tools {
                 left: calc(50% + min(32vw, 450px) - 7rem);
-                bottom: 4.8rem;
+                bottom: 5.8rem;
                 width: 14rem;
             }
         }
@@ -1226,7 +1366,7 @@ def inject_css() -> None:
             .st-key-floating_tools {
                 left: 50%;
                 transform: translateX(-50%);
-                bottom: 4.9rem;
+                bottom: 5.9rem;
                 width: min(88vw, 22rem);
             }
             [data-testid="stChatInput"] {
@@ -1257,13 +1397,13 @@ def run_app(client_factory: ClientFactory | None = None) -> None:
 
     rail, center, inspector = st.columns([1, 2, 1], gap="large")
     with rail:
-        with st.container(key="left_panel", height=PANEL_HEIGHT, border=False):
+        with st.container(key="left_panel", border=False):
             render_session_panel(client)
     with center:
-        with st.container(key="center_panel", height=PANEL_HEIGHT, border=False):
+        with st.container(key="center_panel", border=False):
             render_chat_panel()
     with inspector:
-        with st.container(key="right_panel", height=PANEL_HEIGHT, border=False):
+        with st.container(key="right_panel", border=False):
             render_status_panels(client)
     render_chat_composer(client)
     render_floating_tool_access()
