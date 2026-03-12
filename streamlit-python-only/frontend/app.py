@@ -498,7 +498,7 @@ def render_floating_tool_access() -> None:
 def render_timeline_panel() -> None:
     components.html(
         build_timeline_html(st.session_state["timeline"], st.session_state.get("timeline_filter", "all")),
-        height=720,
+        height=560,
         scrolling=True,
     )
 
@@ -697,11 +697,11 @@ def render_terminal_panel() -> None:
             run_id=st.session_state.get("active_run_id"),
             initial_terminal_id=latest_terminal_id,
         ),
-        height=470,
+        height=360,
         scrolling=False,
     )
     st.markdown("##### Recent Terminal Events")
-    components.html(build_terminal_html(timeline), height=320, scrolling=True)
+    components.html(build_terminal_html(timeline), height=220, scrolling=True)
 
 
 def _format_ratio(value: float | None) -> str:
@@ -892,6 +892,10 @@ def inject_css() -> None:
             --cb-success: #72d39b;
             --cb-danger: #ff7c7c;
         }
+        html, body, .stApp, [data-testid="stAppViewContainer"], .main {
+            height: 100vh;
+            overflow: hidden;
+        }
         .stApp {
             background:
                 radial-gradient(circle at top left, rgba(126, 203, 255, 0.08), transparent 24%),
@@ -906,8 +910,10 @@ def inject_css() -> None:
             display: none !important;
         }
         .block-container {
-            padding-top: 1rem;
-            padding-bottom: 8rem;
+            height: 100vh;
+            overflow: hidden;
+            padding-top: 0.7rem;
+            padding-bottom: 7rem;
             max-width: 1720px;
         }
         .st-key-header_shell,
@@ -917,27 +923,54 @@ def inject_css() -> None:
             background: linear-gradient(180deg, rgba(10, 18, 28, 0.76), rgba(8, 14, 22, 0.6));
             border: 1px solid rgba(255,255,255,0.06);
             border-radius: 24px;
-            padding: 1rem 1rem 1.05rem 1rem;
+            padding: 0.85rem 0.9rem 0.95rem 0.9rem;
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
             backdrop-filter: blur(16px);
         }
         .st-key-header_shell {
-            margin-bottom: 0.9rem;
-            padding-bottom: 0.7rem;
+            margin-bottom: 0.7rem;
+            padding-bottom: 0.5rem;
         }
         .st-key-center_panel {
             padding-bottom: 0.35rem;
         }
+        .st-key-left_panel,
+        .st-key-center_panel,
+        .st-key-right_panel {
+            height: calc(100vh - 15.5rem);
+            overflow: hidden;
+        }
+        .st-key-left_panel > div,
+        .st-key-center_panel > div,
+        .st-key-right_panel > div {
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 0.22rem;
+        }
+        .st-key-left_panel > div::-webkit-scrollbar,
+        .st-key-center_panel > div::-webkit-scrollbar,
+        .st-key-right_panel > div::-webkit-scrollbar {
+            width: 9px;
+        }
+        .st-key-left_panel > div::-webkit-scrollbar-thumb,
+        .st-key-center_panel > div::-webkit-scrollbar-thumb,
+        .st-key-right_panel > div::-webkit-scrollbar-thumb {
+            background: rgba(126, 203, 255, 0.18);
+            border-radius: 999px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+        }
         .cb-title-block h1 {
-            font-size: 2.45rem !important;
-            line-height: 0.96 !important;
-            margin: 0 0 0.3rem 0 !important;
+            font-size: 2.15rem !important;
+            line-height: 0.94 !important;
+            margin: 0 0 0.15rem 0 !important;
         }
         .cb-title-block p {
             margin: 0;
             color: var(--cb-muted);
-            font-size: 0.9rem;
-            max-width: 40rem;
+            font-size: 0.84rem;
+            max-width: 37rem;
         }
         [data-testid="stChatMessage"] {
             background: linear-gradient(180deg, rgba(16,25,38,0.92), rgba(14,22,34,0.82));
@@ -1010,13 +1043,13 @@ def inject_css() -> None:
         .cb-header-divider {
             width: 100%;
             height: 1px;
-            margin: 0.45rem 0 0.2rem 0;
+            margin: 0.3rem 0 0.05rem 0;
             background: linear-gradient(90deg, rgba(255,255,255,0.09), rgba(126,203,255,0.22), rgba(255,255,255,0.02));
         }
         .cb-subtle-note {
             color: var(--cb-muted);
-            font-size: 0.82rem;
-            line-height: 1.45;
+            font-size: 0.78rem;
+            line-height: 1.35;
         }
         .cb-subtle-note code {
             color: #9ce0ff;
@@ -1027,18 +1060,18 @@ def inject_css() -> None:
             border: 1px solid rgba(17, 168, 255, 0.16);
         }
         .cb-chat-bottom-spacer {
-            height: 6.5rem;
+            height: 6.8rem;
         }
         h1, h2, h3, h4, label, [data-testid="stMetricLabel"] {
             font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif !important;
         }
         h1 {
-            font-size: 2.45rem !important;
+            font-size: 2.15rem !important;
             line-height: 0.95 !important;
-            margin-bottom: 0.25rem !important;
+            margin-bottom: 0.15rem !important;
         }
         h4 {
-            font-size: 0.95rem !important;
+            font-size: 0.88rem !important;
             letter-spacing: 0.03em;
         }
         [data-testid="stMarkdownContainer"] p,
@@ -1154,7 +1187,7 @@ def inject_css() -> None:
             color: rgba(214, 221, 230, 0.9) !important;
         }
         [data-testid="column"] {
-            min-height: calc(100vh - 13rem);
+            min-height: calc(100vh - 14.4rem);
         }
         .st-key-left_panel h3,
         .st-key-center_panel h3,
@@ -1179,7 +1212,7 @@ def inject_css() -> None:
         }
         @media (max-width: 1200px) {
             .cb-title-block h1 {
-                font-size: 2.2rem !important;
+                font-size: 1.95rem !important;
             }
             [data-testid="stChatInput"] {
                 width: min(64vw, 900px);
@@ -1191,6 +1224,26 @@ def inject_css() -> None:
             }
         }
         @media (max-width: 900px) {
+            .st-key-left_panel,
+            .st-key-center_panel,
+            .st-key-right_panel {
+                height: auto;
+                max-height: none;
+            }
+            .st-key-left_panel > div,
+            .st-key-center_panel > div,
+            .st-key-right_panel > div {
+                height: auto;
+                overflow: visible;
+                padding-right: 0;
+            }
+            .block-container,
+            .stApp,
+            [data-testid="stAppViewContainer"],
+            .main {
+                overflow: auto;
+                height: auto;
+            }
             .st-key-floating_tools {
                 left: 50%;
                 transform: translateX(-50%);
