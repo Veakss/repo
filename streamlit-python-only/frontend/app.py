@@ -22,7 +22,7 @@ except ModuleNotFoundError:
 
 
 ClientFactory = Callable[[], BackendClient]
-PANEL_HEIGHT = 660
+PANEL_HEIGHT = 720
 
 
 def parse_tool_directive(raw_text: str, toggles: dict[str, bool]) -> tuple[str, dict[str, bool], str | None]:
@@ -326,16 +326,21 @@ def render_notice() -> None:
 
 
 def render_shell_stats() -> None:
-    run_col, approval_col, clarification_col = st.columns(3)
-    with run_col:
-        st.markdown("**Run**")
-        st.caption(_shorten(st.session_state.get("active_run_id")))
-    with approval_col:
-        st.markdown("**Approvals**")
-        st.caption(str(len(st.session_state["pending_approvals"])))
-    with clarification_col:
-        st.markdown("**Clarification**")
-        st.caption("open" if st.session_state["pending_clarification"] else "none")
+    cards = [
+        ("Run", _shorten(st.session_state.get("active_run_id"), 18)),
+        ("Approvals", str(len(st.session_state["pending_approvals"]))),
+        ("Clarify", "open" if st.session_state["pending_clarification"] else "none"),
+    ]
+    stats_html = "".join(
+        f"""
+        <div class="cb-compact-stat">
+          <span class="cb-compact-stat-label">{label}</span>
+          <span class="cb-compact-stat-value">{value}</span>
+        </div>
+        """
+        for label, value in cards
+    )
+    st.markdown(f'<div class="cb-compact-stats">{stats_html}</div>', unsafe_allow_html=True)
 
 
 def render_session_panel(client: BackendClient) -> None:
@@ -925,8 +930,8 @@ def inject_css() -> None:
             backdrop-filter: blur(16px);
         }
         .st-key-header_shell {
-            margin-bottom: 0.7rem;
-            padding-bottom: 0.5rem;
+            margin-bottom: 0.55rem;
+            padding: 0.55rem 0.8rem 0.45rem 0.8rem;
         }
         .st-key-center_panel {
             padding-bottom: 0.35rem;
@@ -950,15 +955,36 @@ def inject_css() -> None:
             background-clip: padding-box;
         }
         .cb-title-block h1 {
-            font-size: 2.15rem !important;
-            line-height: 0.94 !important;
-            margin: 0 0 0.15rem 0 !important;
+            font-size: 1.75rem !important;
+            line-height: 0.92 !important;
+            margin: 0 0 0.06rem 0 !important;
         }
         .cb-title-block p {
             margin: 0;
             color: var(--cb-muted);
-            font-size: 0.84rem;
-            max-width: 37rem;
+            font-size: 0.74rem;
+            max-width: 32rem;
+        }
+        .cb-compact-stats {
+            display: flex;
+            gap: 0.7rem;
+            flex-wrap: wrap;
+            margin-top: 0.45rem;
+        }
+        .cb-compact-stat {
+            display: grid;
+            gap: 0.06rem;
+        }
+        .cb-compact-stat-label {
+            font-size: 0.64rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--cb-muted);
+        }
+        .cb-compact-stat-value {
+            font-size: 0.88rem;
+            color: var(--cb-text);
+            font-weight: 600;
         }
         [data-testid="stChatMessage"] {
             background: linear-gradient(180deg, rgba(16,25,38,0.92), rgba(14,22,34,0.82));
@@ -998,18 +1024,18 @@ def inject_css() -> None:
             flex-wrap: wrap;
             gap: 8px;
             justify-content: flex-end;
-            margin-top: 0.4rem;
+            margin-top: 0.2rem;
         }
         .cb-capability-pill {
             display: inline-flex;
             align-items: center;
-            min-height: 26px;
-            padding: 0 9px;
+            min-height: 22px;
+            padding: 0 8px;
             border-radius: 999px;
             border: 1px solid rgba(126,203,255,0.18);
             background: rgba(126,203,255,0.08);
             color: #cfe9ff;
-            font-size: 11px;
+            font-size: 10px;
         }
         .cb-notice {
             margin: 0 0 14px 0;
@@ -1031,13 +1057,13 @@ def inject_css() -> None:
         .cb-header-divider {
             width: 100%;
             height: 1px;
-            margin: 0.3rem 0 0.05rem 0;
+            margin: 0.18rem 0 0 0;
             background: linear-gradient(90deg, rgba(255,255,255,0.09), rgba(126,203,255,0.22), rgba(255,255,255,0.02));
         }
         .cb-subtle-note {
             color: var(--cb-muted);
-            font-size: 0.78rem;
-            line-height: 1.35;
+            font-size: 0.68rem;
+            line-height: 1.2;
         }
         .cb-subtle-note code {
             color: #9ce0ff;
@@ -1054,17 +1080,18 @@ def inject_css() -> None:
             font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif !important;
         }
         h1 {
-            font-size: 2.15rem !important;
+            font-size: 1.75rem !important;
             line-height: 0.95 !important;
-            margin-bottom: 0.15rem !important;
+            margin-bottom: 0.06rem !important;
         }
         h4 {
-            font-size: 0.88rem !important;
+            font-size: 0.78rem !important;
             letter-spacing: 0.03em;
+            margin-bottom: 0.25rem !important;
         }
         [data-testid="stMarkdownContainer"] p,
         [data-testid="stCaptionContainer"] {
-            font-size: 0.95rem;
+            font-size: 0.9rem;
         }
         [data-testid="stMarkdownContainer"] p {
             color: var(--cb-text);
@@ -1093,7 +1120,7 @@ def inject_css() -> None:
         }
         [data-testid="stSelectbox"] > label,
         [data-testid="stTextInput"] > label {
-            font-size: 0.8rem;
+            font-size: 0.72rem;
             text-transform: uppercase;
             letter-spacing: 0.06em;
         }
@@ -1175,7 +1202,7 @@ def inject_css() -> None:
             color: rgba(214, 221, 230, 0.9) !important;
         }
         [data-testid="column"] {
-            min-height: calc(100vh - 14.4rem);
+            min-height: calc(100vh - 12.2rem);
         }
         .st-key-left_panel h3,
         .st-key-center_panel h3,
@@ -1200,7 +1227,7 @@ def inject_css() -> None:
         }
         @media (max-width: 1200px) {
             .cb-title-block h1 {
-                font-size: 1.95rem !important;
+                font-size: 1.58rem !important;
             }
             [data-testid="stChatInput"] {
                 width: min(64vw, 900px);
