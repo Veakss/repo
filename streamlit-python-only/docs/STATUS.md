@@ -82,6 +82,12 @@
   - inspector column with explicit panel selection
   - compact control header and stat cards
   - cleaner timeline and terminal event cards with raw payloads hidden behind expanders
+- shell panels are now wrapped in dedicated container surfaces:
+  - compact header shell
+  - simplified left session panel
+  - center conversation panel
+  - inspector panel with cleaner framing
+- chat input and floating tool dock now share a fixed bottom control area with stronger blue-accent overrides against Streamlit defaults
 
 ## In Progress
 
@@ -100,6 +106,7 @@
   - denser, more polished component styling
   - stronger visual hierarchy for session navigation vs chat vs inspector
   - reducing remaining Streamlit-native rough edges
+  - manual verification of the remaining global accent overrides in live browser rendering
 
 ## Update Log
 
@@ -202,3 +209,9 @@
 - moved timeline and terminal diagnostics to custom HTML surfaces with concise summaries and collapsible raw payloads
 - tightened the control header, capability pills, notice styling, and inspector navigation to reduce visual noise
 - verified `pytest -q` across the full Python subtree after the UI cleanup pass: `39 passed`
+- applied a second UI implementation pass:
+  - tighter shell scale
+  - fixed composer plus adjacent tool dock
+  - left/center/right panel framing
+  - stronger blue primary overrides for buttons, chat input, and dock controls
+  - verified `pytest tests/test_streamlit_app.py tests/test_runtime.py tests/test_backend_api.py tests/test_sidecar_api.py -q`: `25 passed`

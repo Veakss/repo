@@ -31,6 +31,7 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
    - deeper Thales live validation when credentials are available
    - UI refinements and performance polish
    - continue replacing Streamlit-native rough edges with custom surfaces where the JS shell is materially cleaner
+   - keep manually verifying the live browser result when overriding Streamlit accent colors or fixed-position controls
 3. Keep using the live verification scripts when changing contracts:
    - `verify_lot2_live_mongo.py`
    - `verify_lot3_live.py`
@@ -123,6 +124,11 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
   - left rail for sessions
   - center conversation column
   - right inspector column
+- the shell panels now also use dedicated framed containers for header, left panel, chat panel, and inspector panel to reduce the "raw Streamlit page" look
+- the fixed bottom control area now includes:
+  - centered chat composer
+  - adjacent floating tool dock
+  - stronger blue primary overrides for the active controls
 - timeline and terminal event feeds now render through custom HTML cards with concise summaries and collapsible raw payloads instead of dumping noisy raw blocks inline
 - `tests/test_streamlit_app.py` covers the core phase 3 layout through `streamlit.testing.v1`
 - `scripts/verify_lot3.py` runs the full project test suite plus compile checks
@@ -157,3 +163,4 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
   - hard fail: `rag_session_docs_multiturn_backend`
 - the remaining Matrix failures are now answer-quality/contract issues, not backend plumbing failures
 - latest UI cleanup pass kept the full suite green: `39 passed`
+- latest UI implementation pass also kept targeted UI/runtime/backend/sidecar checks green: `25 passed`

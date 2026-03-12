@@ -377,8 +377,16 @@ def render_session_panel(client: BackendClient) -> None:
     selected = st.session_state["session_id"]
     current = next((session for session in sessions if session["id"] == selected), None)
     if current:
-        st.caption(f"Selected: {current['title']}")
-        st.caption(f"Messages: {current.get('message_count', 0)}")
+        st.markdown(
+            f"""
+            <div class="cb-mini-card">
+              <span class="cb-mini-label">Selected</span>
+              <strong>{current['title']}</strong>
+              <span class="cb-mini-meta">{current.get('message_count', 0)} messages</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     with st.expander("Session Settings", expanded=False):
         st.text_input("Backend URL", key="backend_url")
@@ -438,7 +446,7 @@ def render_header() -> None:
         )
     controls_left, controls_right = st.columns([1.6, 0.68], gap="medium")
     with controls_left:
-        st.caption("Directives: `/rag`, `/web`, `/apps`, `/clarify` force the matching orchestration mode for one run.")
+        st.markdown('<div class="cb-subtle-note">Directives: <code>/rag</code>, <code>/web</code>, <code>/apps</code>, <code>/clarify</code> force the matching orchestration mode for one run.</div>', unsafe_allow_html=True)
     with controls_right:
         st.markdown("##### Timeline")
         st.selectbox(
@@ -870,6 +878,7 @@ def inject_css() -> None:
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
         :root {
+            --primary-color: #11a8ff;
             --cb-bg-0: #071019;
             --cb-bg-1: rgba(10, 18, 28, 0.88);
             --cb-bg-2: rgba(14, 22, 34, 0.76);
@@ -878,6 +887,8 @@ def inject_css() -> None:
             --cb-muted: rgba(197, 209, 223, 0.72);
             --cb-accent: #7ecbff;
             --cb-accent-soft: rgba(126, 203, 255, 0.16);
+            --cb-electric: #11a8ff;
+            --cb-electric-strong: #0d74ff;
             --cb-success: #72d39b;
             --cb-danger: #ff7c7c;
         }
@@ -899,6 +910,24 @@ def inject_css() -> None:
             padding-bottom: 8rem;
             max-width: 1720px;
         }
+        .st-key-header_shell,
+        .st-key-left_panel,
+        .st-key-center_panel,
+        .st-key-right_panel {
+            background: linear-gradient(180deg, rgba(10, 18, 28, 0.76), rgba(8, 14, 22, 0.6));
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 24px;
+            padding: 1rem 1rem 1.05rem 1rem;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+            backdrop-filter: blur(16px);
+        }
+        .st-key-header_shell {
+            margin-bottom: 0.9rem;
+            padding-bottom: 0.7rem;
+        }
+        .st-key-center_panel {
+            padding-bottom: 0.35rem;
+        }
         .cb-title-block h1 {
             font-size: 2.45rem !important;
             line-height: 0.96 !important;
@@ -916,12 +945,32 @@ def inject_css() -> None:
             border-radius: 18px;
             backdrop-filter: blur(14px);
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+            margin-bottom: 0.55rem;
         }
         [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
             font-size: 1rem;
         }
         [data-testid="stChatMessageContent"] p {
             line-height: 1.6;
+        }
+        .cb-mini-card {
+            display: grid;
+            gap: 0.22rem;
+            padding: 0.85rem 0.95rem;
+            margin: 0.25rem 0 0.8rem 0;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.035);
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .cb-mini-label {
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.68rem;
+            color: var(--cb-muted);
+        }
+        .cb-mini-meta {
+            color: var(--cb-muted);
+            font-size: 0.85rem;
         }
         .cb-capability-row {
             display: flex;
@@ -964,6 +1013,19 @@ def inject_css() -> None:
             margin: 0.45rem 0 0.2rem 0;
             background: linear-gradient(90deg, rgba(255,255,255,0.09), rgba(126,203,255,0.22), rgba(255,255,255,0.02));
         }
+        .cb-subtle-note {
+            color: var(--cb-muted);
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+        .cb-subtle-note code {
+            color: #9ce0ff;
+            font-family: "IBM Plex Mono", ui-monospace, monospace;
+            background: rgba(17, 168, 255, 0.08);
+            padding: 0.08rem 0.28rem;
+            border-radius: 999px;
+            border: 1px solid rgba(17, 168, 255, 0.16);
+        }
         .cb-chat-bottom-spacer {
             height: 6.5rem;
         }
@@ -1002,6 +1064,12 @@ def inject_css() -> None:
         [data-testid="stNumberInput"] label {
             color: var(--cb-muted) !important;
         }
+        [data-baseweb="select"] svg,
+        [data-baseweb="input"] svg,
+        .st-emotion-cache-1umgz6k svg {
+            color: var(--cb-electric) !important;
+            fill: var(--cb-electric) !important;
+        }
         [data-testid="stSelectbox"] > label,
         [data-testid="stTextInput"] > label {
             font-size: 0.8rem;
@@ -1018,8 +1086,9 @@ def inject_css() -> None:
             font-size: 0.94rem;
         }
         .stButton > button[kind="primary"] {
-            background: linear-gradient(180deg, rgba(126,203,255,0.22), rgba(126,203,255,0.12));
-            border-color: rgba(126,203,255,0.28);
+            background: linear-gradient(180deg, rgba(17, 168, 255, 0.74), rgba(13, 116, 255, 0.48)) !important;
+            border-color: rgba(78, 201, 255, 0.86) !important;
+            box-shadow: 0 0 0 1px rgba(17, 168, 255, 0.14), 0 0 18px rgba(17, 168, 255, 0.14);
         }
         [data-testid="stChatInput"] {
             position: fixed;
@@ -1035,9 +1104,22 @@ def inject_css() -> None:
             box-shadow: 0 18px 50px rgba(0,0,0,0.34);
             backdrop-filter: blur(18px);
         }
+        [data-testid="stChatInput"] > div {
+            border-color: rgba(17, 168, 255, 0.32) !important;
+            box-shadow: 0 0 0 1px rgba(17, 168, 255, 0.1), 0 0 22px rgba(17, 168, 255, 0.12);
+        }
         [data-testid="stChatInput"] textarea,
         [data-testid="stChatInput"] input {
             background: transparent !important;
+        }
+        [data-testid="stChatInput"] button {
+            background: linear-gradient(180deg, rgba(17, 168, 255, 0.82), rgba(13, 116, 255, 0.58)) !important;
+            border-color: rgba(78, 201, 255, 0.9) !important;
+            color: white !important;
+        }
+        [data-testid="stChatInput"] button svg {
+            fill: white !important;
+            color: white !important;
         }
         .st-key-floating_tools {
             position: fixed;
@@ -1073,6 +1155,17 @@ def inject_css() -> None:
         }
         [data-testid="column"] {
             min-height: calc(100vh - 13rem);
+        }
+        .st-key-left_panel h3,
+        .st-key-center_panel h3,
+        .st-key-right_panel h3 {
+            margin-top: 0.2rem;
+        }
+        .st-key-right_panel [data-testid="stRadio"] {
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 16px;
+            padding: 0.65rem 0.75rem 0.15rem 0.75rem;
+            background: rgba(255,255,255,0.025);
         }
         [data-testid="stRadio"] label p,
         [data-testid="stCheckbox"] label p {
@@ -1126,16 +1219,20 @@ def run_app(client_factory: ClientFactory | None = None) -> None:
     except Exception as exc:
         set_status(error=f"Bootstrap failed: {exc}")
 
-    render_header()
-    render_notice()
+    with st.container(key="header_shell"):
+        render_header()
+        render_notice()
 
     rail, center, inspector = st.columns([1, 2, 1], gap="large")
     with rail:
-        render_session_panel(client)
+        with st.container(key="left_panel"):
+            render_session_panel(client)
     with center:
-        render_chat_panel(client)
+        with st.container(key="center_panel"):
+            render_chat_panel(client)
     with inspector:
-        render_status_panels(client)
+        with st.container(key="right_panel"):
+            render_status_panels(client)
     render_floating_tool_access()
 
 
