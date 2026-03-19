@@ -61,6 +61,7 @@ class AgentState(TypedDict):
     decision: dict[str, Any]
     control: dict[str, Any]
     output: dict[str, Any]
+    run_trace: dict[str, Any]
 
 
 @dataclass(slots=True)

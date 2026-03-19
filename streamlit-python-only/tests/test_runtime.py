@@ -1502,3 +1502,36 @@ def test_terminal_manager_benchmark_smoke(tmp_path: Path):
     assert open_ms < 5000
     assert roundtrip_ms < 5000
     assert close_ms < 5000
+
+
+@pytest.mark.anyio
+async def test_runtime_done_event_contains_run_trace_summary(tmp_path: Path):
+    model = FakeModel([AIMessage(content="All good.")])
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(
+        sessionId="s1",
+        messages=[ChatMessage(role="user", content="Answer briefly.")],
+        workspaceRoot=str(tmp_path),
+        policyProfile="always_allow",
+    )
+    events = [event async for event in runtime.stream_chat(request, [HumanMessage(content=request.messages[0].content)])]
+    done_event = next(event for event in events if event.get("type") == "done")
+    assert done_event.get("runTrace", {}).get("outcome") == "completed"
+    assert int(done_event.get("runTrace", {}).get("step_count", 0) or 0) >= 1
+
+
+@pytest.mark.anyio
+async def test_runtime_marks_invalid_final_answer_as_failed(tmp_path: Path):
+    model = FakeModel([AIMessage(content='{"name":"read_file","arguments":{"path":"a.txt"}}')] * 40)
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(
+        sessionId="s1",
+        messages=[ChatMessage(role="user", content="Answer directly.")],
+        workspaceRoot=str(tmp_path),
+        policyProfile="always_allow",
+    )
+    events = [event async for event in runtime.stream_chat(request, [HumanMessage(content=request.messages[0].content)])]
+    done_event = next(event for event in events if event.get("type") == "done")
+    run_states = [event for event in events if event.get("type") == "run_state"]
+    assert run_states[-1]["state"] == "failed"
+    assert done_event.get("runTrace", {}).get("failure", {}).get("code") == "invalid_final_answer"

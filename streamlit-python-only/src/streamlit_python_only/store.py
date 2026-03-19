@@ -270,6 +270,9 @@ class MongoStore:
             "clarifications_answered": 0,
             "active_approval_id": None,
             "active_clarification_id": None,
+            "outcome": None,
+            "failure_code": None,
+            "run_trace": None,
         }
 
     def _apply_meta_update(self, meta: dict[str, Any], event: dict[str, Any]) -> None:
@@ -321,6 +324,18 @@ class MongoStore:
         elif event_type == "clarification_answered":
             meta["clarifications_answered"] = int(meta.get("clarifications_answered", 0)) + 1
             meta["active_clarification_id"] = None
+        elif event_type == "done":
+            trace = event.get("runTrace")
+            if isinstance(trace, dict):
+                outcome = trace.get("outcome")
+                failure = trace.get("failure")
+                meta["run_trace"] = trace
+                if isinstance(outcome, str) and outcome:
+                    meta["outcome"] = outcome
+                if isinstance(failure, dict):
+                    failure_code = failure.get("code")
+                    if isinstance(failure_code, str) and failure_code:
+                        meta["failure_code"] = failure_code
 
         if event_type in {"terminal_opened", "terminal_control_changed", "terminal_exit", "terminal_error"}:
             terminal_id = event.get("terminalId")

@@ -278,5 +278,10 @@ def terminal_error(
     return event
 
 
-def done() -> dict:
-    return {"type": "done"}
+def done(run_id: str | None = None, run_trace: dict | None = None) -> dict:
+    event: dict[str, object] = {"type": "done"}
+    if run_id:
+        event["runId"] = run_id
+    if run_trace:
+        event["runTrace"] = run_trace
+    return event

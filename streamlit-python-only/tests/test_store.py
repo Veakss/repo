@@ -128,3 +128,27 @@ def test_delete_session_cascades_run_state_and_artifacts(tmp_path):
     assert store.get_run("run-delete") is None
     assert not tmp_path.joinpath("runs", "run-delete.meta.json").exists()
     assert not tmp_path.joinpath("runs", "run-delete.jsonl").exists()
+
+
+def test_store_persists_done_run_trace_summary(tmp_path):
+    store = build_store(tmp_path)
+    session = store.create_session("Trace")
+    store.start_run("run-trace", session["id"])
+    store.append_run_event(
+        "run-trace",
+        {
+            "type": "done",
+            "runId": "run-trace",
+            "runTrace": {
+                "outcome": "failed",
+                "step_count": 7,
+                "failure": {"code": "missing_evidence", "next_action": "gather_missing_evidence"},
+            },
+            "timestamp": "2026-03-19T10:00:00+00:00",
+        },
+    )
+    run = store.get_run("run-trace")
+    assert run is not None
+    assert run["meta"]["outcome"] == "failed"
+    assert run["meta"]["failure_code"] == "missing_evidence"
+    assert run["meta"]["run_trace"]["step_count"] == 7

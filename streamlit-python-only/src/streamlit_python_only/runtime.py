@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
@@ -150,6 +151,16 @@ DIRECTORY_PHRASE_PATTERN = re.compile(r"\b(?:inspect|list|check|explore)\s+(?:th
 SEQUENTIAL_CUE_PATTERN = re.compile(r"\b(?:then|now|after that|and now|next)\b", flags=re.IGNORECASE)
 MAX_NO_PROGRESS_TURNS = 2
 MAX_REPAIR_ATTEMPTS = 3
+FAILURE_CODE_SET = {
+    "missing_evidence",
+    "verification_failed",
+    "tool_failed",
+    "approval_blocked",
+    "clarification_blocked",
+    "no_progress_limit",
+    "invalid_final_answer",
+    "runtime_exception",
+}
 
 
 def parse_text_tool_calls(text: str) -> list[dict[str, Any]]:
@@ -2016,6 +2027,11 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         normalized = normalize_whitespace(final_text)
         if not normalized:
             return False
+        contract = FinalAnswerContract.from_payload(state.get("final_contract"))
+        if contract.exact_output_text and normalize_exact_output(normalized) == normalize_exact_output(contract.exact_output_text):
+            return False
+        if self._is_followup_grounded_turn(state):
+            return False
         if "(empty response)" in normalized.lower():
             return True
         if self._looks_like_pseudo_tool_json(normalized):
@@ -2083,6 +2099,233 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
                 "executedTools": list(dict.fromkeys(state.get("executed_tools", [])))[-20:],
             },
         )
+
+    def _now_iso(self) -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+    def _build_initial_run_trace(self, state: AgentState) -> dict[str, Any]:
+        goal_summary = dict(state.get("goal_summary") or {})
+        goal_text = normalize_whitespace(str(goal_summary.get("userIntent") or self._last_user_message(state.get("messages", [])) or ""))
+        return {
+            "run_id": state.get("run_id"),
+            "session_id": state.get("session_id"),
+            "started_at": self._now_iso(),
+            "ended_at": None,
+            "goal": goal_text,
+            "steps": [],
+            "outcome": None,
+            "failure": None,
+            "_event_cursor": 0,
+        }
+
+    def _ensure_run_trace(self, state: AgentState) -> dict[str, Any]:
+        trace = state.get("run_trace")
+        if not isinstance(trace, dict):
+            trace = self._build_initial_run_trace(state)
+            state["run_trace"] = trace
+        trace.setdefault("run_id", state.get("run_id"))
+        trace.setdefault("session_id", state.get("session_id"))
+        trace.setdefault("started_at", self._now_iso())
+        trace.setdefault("goal", normalize_whitespace(str((state.get("goal_summary") or {}).get("userIntent") or self._last_user_message(state.get("messages", [])) or "")))
+        trace.setdefault("steps", [])
+        trace.setdefault("outcome", None)
+        trace.setdefault("failure", None)
+        trace.setdefault("_event_cursor", 0)
+        return trace
+
+    def _append_run_trace_step(
+        self,
+        state: AgentState,
+        *,
+        kind: str,
+        status: str,
+        summary: str,
+        data: dict[str, Any] | None = None,
+    ) -> None:
+        trace = self._ensure_run_trace(state)
+        steps = trace.get("steps")
+        if not isinstance(steps, list):
+            steps = []
+            trace["steps"] = steps
+        step = {
+            "index": len(steps) + 1,
+            "kind": kind,
+            "status": status,
+            "summary": normalize_whitespace(summary),
+            "timestamp": self._now_iso(),
+        }
+        if data:
+            step["data"] = data
+        steps.append(step)
+
+    def _append_trace_steps_from_tool_events(self, state: AgentState) -> None:
+        trace = self._ensure_run_trace(state)
+        cursor = int(trace.get("_event_cursor", 0) or 0)
+        tool_events = list(state.get("tool_events", []))
+        if cursor >= len(tool_events):
+            return
+        for event in tool_events[cursor:]:
+            event_type = str(event.get("type") or "")
+            if event_type == "tool_call":
+                tool_name = str(event.get("name") or "tool")
+                self._append_run_trace_step(
+                    state,
+                    kind="tool_call",
+                    status="pending",
+                    summary=f"Call tool `{tool_name}`.",
+                    data={"tool": tool_name, "actionId": event.get("actionId")},
+                )
+            elif event_type == "tool_result":
+                tool_name = str(event.get("name") or "tool")
+                ok = bool(event.get("ok"))
+                self._append_run_trace_step(
+                    state,
+                    kind="tool_result",
+                    status="ok" if ok else "failed",
+                    summary=f"Tool `{tool_name}` {'succeeded' if ok else 'failed'}.",
+                    data={"tool": tool_name, "ok": ok},
+                )
+            elif event_type == "run_diagnostic":
+                code = str(event.get("code") or "")
+                message = str(event.get("message") or code or "diagnostic")
+                if code in {"goal_gap_summary", "task_completion_unverified"}:
+                    self._append_run_trace_step(
+                        state,
+                        kind="verify",
+                        status="warn" if code == "task_completion_unverified" else "ok",
+                        summary=message,
+                        data={"code": code, "data": event.get("data")},
+                    )
+                elif code in {"final_contract_repair_requested", "verify_guardrail_repair", "verify_guardrail_repeated", "final_contract_repair_failed"}:
+                    self._append_run_trace_step(
+                        state,
+                        kind="repair",
+                        status="warn",
+                        summary=message,
+                        data={"code": code},
+                    )
+        trace["_event_cursor"] = len(tool_events)
+
+    def _failure_defaults(self, code: str) -> tuple[str, str]:
+        defaults: dict[str, tuple[str, str]] = {
+            "missing_evidence": ("Missing required evidence to complete the goal.", "gather_missing_evidence"),
+            "verification_failed": ("Final verification failed.", "repair_from_existing_evidence"),
+            "tool_failed": ("A required tool action failed.", "retry_or_switch_tool"),
+            "approval_blocked": ("Execution is blocked pending user approval.", "provide_approval_decision"),
+            "clarification_blocked": ("Execution is blocked pending user clarification.", "provide_clarification_answer"),
+            "no_progress_limit": ("No-progress guardrail stopped the run.", "stop_and_report_partial"),
+            "invalid_final_answer": ("Final answer is invalid or ambiguous.", "repair_final_answer"),
+            "runtime_exception": ("Runtime raised an exception.", "retry_run"),
+        }
+        return defaults.get(code, defaults["verification_failed"])
+
+    def _build_failure_payload(
+        self,
+        code: str,
+        *,
+        message: str | None = None,
+        missing_evidence: list[str] | None = None,
+        context: dict[str, Any] | None = None,
+        next_action: str | None = None,
+    ) -> dict[str, Any]:
+        normalized_code = code if code in FAILURE_CODE_SET else "verification_failed"
+        default_message, default_next_action = self._failure_defaults(normalized_code)
+        payload: dict[str, Any] = {
+            "code": normalized_code,
+            "message": normalize_whitespace(message or default_message),
+            "missing_evidence": list(missing_evidence or []),
+            "next_action": next_action or default_next_action,
+        }
+        if context:
+            payload["context"] = dict(context)
+        return payload
+
+    def _failure_from_goal_assessment(
+        self,
+        state: AgentState,
+        assessment: GoalAssessment,
+        violations: list[tuple[str, str]],
+        final_text: str,
+    ) -> dict[str, Any]:
+        violation_codes = {code for code, _message in violations}
+        if not normalize_whitespace(final_text) or {"empty_final_answer", "invalid_final_answer"}.intersection(violation_codes):
+            message = "; ".join(message for _code, message in violations if _code in {"empty_final_answer", "invalid_final_answer"}) or None
+            return self._build_failure_payload("invalid_final_answer", message=message)
+        if assessment.gap.missing_evidence or assessment.gap.missing_facts or "task_completion_unverified" in violation_codes:
+            missing = _dedupe_strings([*assessment.gap.missing_evidence, *assessment.gap.missing_facts])
+            return self._build_failure_payload(
+                "missing_evidence",
+                message="Goal gap is still open: missing verified evidence.",
+                missing_evidence=missing,
+            )
+        if int(state.get("no_progress_turns", 0) or 0) >= MAX_NO_PROGRESS_TURNS:
+            return self._build_failure_payload("no_progress_limit")
+        if any(code in {"tool_execution_error", "terminal_tool_error"} for code, _message in violations):
+            return self._build_failure_payload("tool_failed")
+        message = "; ".join(message for _code, message in violations[:4]) if violations else None
+        return self._build_failure_payload("verification_failed", message=message)
+
+    def _build_failure_final_text(self, failure: dict[str, Any]) -> str:
+        code = str(failure.get("code") or "verification_failed")
+        message = str(failure.get("message") or "Final verification failed.")
+        missing = [str(item) for item in failure.get("missing_evidence", []) if str(item).strip()]
+        next_action = str(failure.get("next_action") or "")
+        parts = [f"Run failed (`{code}`): {message}"]
+        if missing:
+            parts.append("Missing evidence: " + ", ".join(missing[:6]) + ".")
+        if next_action:
+            parts.append(f"Next action: {next_action}.")
+        return " ".join(parts)
+
+    def _finalize_run_trace(self, state: AgentState, *, outcome: str, failure: dict[str, Any] | None = None) -> dict[str, Any]:
+        trace = self._ensure_run_trace(state)
+        trace["ended_at"] = self._now_iso()
+        trace["outcome"] = "completed" if outcome == "completed" else "failed"
+        trace["failure"] = None if outcome == "completed" else dict(failure or self._build_failure_payload("verification_failed"))
+        return trace
+
+    def _assert_terminal_consistency(self, trace: dict[str, Any]) -> tuple[bool, str]:
+        outcome = str(trace.get("outcome") or "")
+        failure = trace.get("failure")
+        steps = trace.get("steps")
+        if outcome not in {"completed", "failed"}:
+            return False, "Trace outcome is missing or invalid."
+        if not isinstance(steps, list) or not steps:
+            return False, "Trace has no steps."
+        if outcome == "completed" and failure:
+            return False, "Completed trace should not include failure payload."
+        if outcome == "failed":
+            if not isinstance(failure, dict) or str(failure.get("code") or "") not in FAILURE_CODE_SET:
+                return False, "Failed trace must include a valid failure code."
+        return True, "ok"
+
+    def _run_trace_summary(self, trace: dict[str, Any]) -> dict[str, Any]:
+        failure = trace.get("failure") if isinstance(trace.get("failure"), dict) else None
+        summary = {
+            "outcome": trace.get("outcome"),
+            "step_count": len(trace.get("steps", [])) if isinstance(trace.get("steps"), list) else 0,
+        }
+        if failure:
+            summary["failure"] = {"code": failure.get("code"), "next_action": failure.get("next_action")}
+        return summary
+
+    def _is_blocking_violation(self, code: str) -> bool:
+        return code in {
+            "empty_final_answer",
+            "invalid_final_answer",
+            "action_claim_without_tool_open_url",
+            "action_claim_without_tool_open_file",
+            "sources_missing_in_final_answer",
+            "rag_citations_missing",
+            "rag_status_not_disclosed",
+            "rag_grounding_weak",
+            "missing_required_evidence",
+            "missing_required_facts",
+            "answer_ignores_strong_evidence",
+            "task_completion_unverified",
+            "exact_output_mismatch",
+            "wrong_response_language",
+        }
 
     def _evaluate_goal_completion(self, state: AgentState, final_text: str) -> GoalAssessment:
         contract = FinalAnswerContract.from_payload(state.get("final_contract"))
@@ -2862,10 +3105,26 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         return events, formatted, (not blocked and exit_code == 0), None
 
     async def _stream_result(self, run_id: str, result: AgentState):
+        self._append_trace_steps_from_tool_events(result)
         for event in result.get("tool_events", []):
             yield event
         if result.get("pending_approval"):
             approval = result["pending_approval"]
+            failure = self._build_failure_payload(
+                "approval_blocked",
+                context={"approvalId": approval.get("approvalId"), "tool": approval.get("name")},
+            )
+            self._append_run_trace_step(
+                result,
+                kind="finish",
+                status="blocked",
+                summary="Execution blocked waiting for approval.",
+                data={"code": failure["code"]},
+            )
+            trace = self._finalize_run_trace(result, outcome="failed", failure=failure)
+            ok, message = self._assert_terminal_consistency(trace)
+            if not ok:
+                yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
             self.deps.state_store.save("approvals", approval["approvalId"], {**self._serialize_snapshot(result)})
             yield run_state(run_id, "awaiting_approval")
             yield approval_required(
@@ -2875,10 +3134,25 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
                 arguments=json.dumps(approval["arguments"], ensure_ascii=False),
                 risk_level=approval["riskLevel"],
             )
-            yield done()
+            yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
             return
         if result.get("pending_clarification"):
             clarification = result["pending_clarification"]
+            failure = self._build_failure_payload(
+                "clarification_blocked",
+                context={"clarificationId": clarification.get("clarificationId")},
+            )
+            self._append_run_trace_step(
+                result,
+                kind="finish",
+                status="blocked",
+                summary="Execution blocked waiting for clarification.",
+                data={"code": failure["code"]},
+            )
+            trace = self._finalize_run_trace(result, outcome="failed", failure=failure)
+            ok, message = self._assert_terminal_consistency(trace)
+            if not ok:
+                yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
             self.deps.state_store.save("clarifications", clarification["clarificationId"], {**self._serialize_snapshot(result)})
             yield run_state(run_id, "awaiting_clarification")
             yield clarification_required(
@@ -2887,31 +3161,63 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
                 question=clarification["question"],
                 options=clarification["options"],
             )
-            yield done()
+            yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
             return
         final_text = normalize_final_markdown(str(result.get("final_text", "") or ""))
         if not final_text:
             fallback = self._synthesize_fallback_final_answer(result)
             if fallback:
                 final_text = normalize_final_markdown(fallback)
-        if not final_text:
-            goal_gap = dict(result.get("goal_gap_summary") or {})
-            missing_evidence = list(goal_gap.get("missingEvidence") or [])
-            missing_facts = list(goal_gap.get("missingFacts") or [])
-            parts: list[str] = ["I do not have enough verified evidence to finish the task cleanly."]
-            if missing_evidence:
-                parts.append("Missing evidence: " + ", ".join(str(item) for item in missing_evidence[:6]) + ".")
-            if missing_facts:
-                parts.append("Missing facts: " + ", ".join(str(item) for item in missing_facts[:6]) + ".")
-            final_text = " ".join(parts)
         final_text = normalize_final_markdown(final_text)
+        assessment = self._evaluate_goal_completion(result, final_text)
+        violations = list(assessment.mismatch_codes)
+        blocking_violations = [(code, message) for code, message in violations if self._is_blocking_violation(code)]
+        verify_ok = bool(final_text) and not blocking_violations and assessment.action != "gather_more_evidence"
+        self._append_run_trace_step(
+            result,
+            kind="verify",
+            status="ok" if verify_ok else "warn",
+            summary="Final verification passed." if verify_ok else "Final verification failed.",
+            data={
+                "action": assessment.action,
+                "mismatchCodes": [code for code, _message in blocking_violations] if blocking_violations else [code for code, _message in violations],
+            },
+        )
         yield run_phase(run_id, "finish")
-        for piece in split_for_streaming(final_text):
+        if verify_ok:
+            visible_text = final_text
+            self._append_run_trace_step(result, kind="finish", status="ok", summary="Run completed with verified final answer.")
+            trace = self._finalize_run_trace(result, outcome="completed")
+            end_state = "completed"
+        else:
+            failure = self._failure_from_goal_assessment(result, assessment, blocking_violations or violations, final_text)
+            violation_codes = {code for code, _message in (blocking_violations or violations)}
+            if (
+                normalize_whitespace(final_text)
+                and failure.get("code") in {"missing_evidence", "verification_failed", "no_progress_limit"}
+                and not violation_codes.intersection({"empty_final_answer", "invalid_final_answer"})
+            ):
+                visible_text = final_text
+            else:
+                visible_text = normalize_final_markdown(self._build_failure_final_text(failure))
+            self._append_run_trace_step(
+                result,
+                kind="finish",
+                status="failed",
+                summary=f"Run failed: {failure['code']}.",
+                data={"code": failure["code"]},
+            )
+            trace = self._finalize_run_trace(result, outcome="failed", failure=failure)
+            end_state = "failed"
+        for piece in split_for_streaming(visible_text):
             yield token(piece)
             await asyncio.sleep(0)
         yield self._build_run_metrics_event(result)
-        yield run_state(run_id, "completed")
-        yield done()
+        ok, message = self._assert_terminal_consistency(trace)
+        if not ok:
+            yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
+        yield run_state(run_id, end_state)
+        yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
         return
 
     def _create_graph(self):
@@ -2976,9 +3282,11 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             "decision": {},
             "control": {},
             "output": {},
+            "run_trace": {},
         }
         self._refresh_goal_tracking(seeded_state, "")
         self._sync_graph_state_slices(seeded_state)
+        seeded_state["run_trace"] = self._build_initial_run_trace(seeded_state)
         return seeded_state
 
     def _last_user_message(self, messages: list[BaseMessage]) -> str:
@@ -3076,6 +3384,7 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             "decision": state.get("decision", {}),
             "control": state.get("control", {}),
             "output": state.get("output", {}),
+            "run_trace": state.get("run_trace", {}),
         }
 
     def _deserialize_snapshot(self, payload: dict[str, Any]) -> AgentState:
@@ -3142,6 +3451,7 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             "decision": dict(payload.get("decision") or {}),
             "control": dict(payload.get("control") or {}),
             "output": dict(payload.get("output") or {}),
+            "run_trace": dict(payload.get("run_trace") or {}),
         }
 
     async def stream_chat(self, request: SidecarChatRequest, messages: list[BaseMessage]):
@@ -3219,16 +3529,27 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
                     continue
                 yield event
         except Exception as exc:
+            failure = self._build_failure_payload("runtime_exception", message=str(exc))
+            self._append_run_trace_step(state, kind="finish", status="failed", summary=f"Runtime exception: {failure['message']}.", data={"code": failure["code"]})
+            trace = self._finalize_run_trace(state, outcome="failed", failure=failure)
             yield error_event(str(exc))
             yield run_state(run_id, "failed")
-            yield done()
+            ok, message = self._assert_terminal_consistency(trace)
+            if not ok:
+                yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
+            yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
             return
         if result is None:
+            failure = self._build_failure_payload("runtime_exception", message="Runtime finished without a graph result.")
+            self._append_run_trace_step(state, kind="finish", status="failed", summary="Runtime finished without a graph result.", data={"code": failure["code"]})
+            trace = self._finalize_run_trace(state, outcome="failed", failure=failure)
             yield error_event("Runtime finished without a graph result.")
             yield run_state(run_id, "failed")
-            yield done()
+            ok, message = self._assert_terminal_consistency(trace)
+            if not ok:
+                yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
+            yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
             return
-        result = self._finalize_result_contract(result)
         async for event in self._stream_result(run_id, result):
             yield event
 
@@ -3244,9 +3565,15 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"], state.get("tool_toggles"))
             registered = registry.get(pending["name"])
             if not registered:
+                failure = self._build_failure_payload("tool_failed", message="Approved tool is no longer available.")
+                self._append_run_trace_step(state, kind="finish", status="failed", summary="Approved tool is no longer available.", data={"code": failure["code"]})
+                trace = self._finalize_run_trace(state, outcome="failed", failure=failure)
                 yield error_event("Approved tool is no longer available")
                 yield run_state(run_id, "failed")
-                yield done()
+                ok, message = self._assert_terminal_consistency(trace)
+                if not ok:
+                    yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
+                yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
                 return
             try:
                 normalized_args, normalization_events = self._normalize_tool_args(state, pending["name"], dict(pending["arguments"] or {}))
@@ -3315,16 +3642,27 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
                     continue
                 yield event
         except Exception as exc:
+            failure = self._build_failure_payload("runtime_exception", message=str(exc))
+            self._append_run_trace_step(state, kind="finish", status="failed", summary=f"Runtime exception: {failure['message']}.", data={"code": failure["code"]})
+            trace = self._finalize_run_trace(state, outcome="failed", failure=failure)
             yield error_event(str(exc))
             yield run_state(run_id, "failed")
-            yield done()
+            ok, message = self._assert_terminal_consistency(trace)
+            if not ok:
+                yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
+            yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
             return
         if result is None:
+            failure = self._build_failure_payload("runtime_exception", message="Runtime finished without a graph result.")
+            self._append_run_trace_step(state, kind="finish", status="failed", summary="Runtime finished without a graph result.", data={"code": failure["code"]})
+            trace = self._finalize_run_trace(state, outcome="failed", failure=failure)
             yield error_event("Runtime finished without a graph result.")
             yield run_state(run_id, "failed")
-            yield done()
+            ok, message = self._assert_terminal_consistency(trace)
+            if not ok:
+                yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
+            yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
             return
-        result = self._finalize_result_contract(result)
         async for event in self._stream_result(run_id, result):
             yield event
 
@@ -3378,15 +3716,26 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
                     continue
                 yield event
         except Exception as exc:
+            failure = self._build_failure_payload("runtime_exception", message=str(exc))
+            self._append_run_trace_step(state, kind="finish", status="failed", summary=f"Runtime exception: {failure['message']}.", data={"code": failure["code"]})
+            trace = self._finalize_run_trace(state, outcome="failed", failure=failure)
             yield error_event(str(exc))
             yield run_state(run_id, "failed")
-            yield done()
+            ok, message = self._assert_terminal_consistency(trace)
+            if not ok:
+                yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
+            yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
             return
         if result is None:
+            failure = self._build_failure_payload("runtime_exception", message="Runtime finished without a graph result.")
+            self._append_run_trace_step(state, kind="finish", status="failed", summary="Runtime finished without a graph result.", data={"code": failure["code"]})
+            trace = self._finalize_run_trace(state, outcome="failed", failure=failure)
             yield error_event("Runtime finished without a graph result.")
             yield run_state(run_id, "failed")
-            yield done()
+            ok, message = self._assert_terminal_consistency(trace)
+            if not ok:
+                yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
+            yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
             return
-        result = self._finalize_result_contract(result)
         async for event in self._stream_result(run_id, result):
             yield event
