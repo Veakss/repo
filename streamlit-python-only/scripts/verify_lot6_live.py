@@ -66,7 +66,7 @@ def main() -> int:
     run_stamp = str(int(time.time()))
     artifact_root = PROJECT_ROOT.joinpath("artifacts", "live_phase6_artifacts")
     artifact_root.mkdir(parents=True, exist_ok=True)
-    database_name = f"continue_better_python_phase6_live_{run_stamp}"
+    database_name = f"streamlit_python_only_phase6_live_{run_stamp}"
 
     env = os.environ.copy()
     env.update(

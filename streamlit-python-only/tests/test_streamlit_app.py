@@ -160,10 +160,126 @@ run_app(client_factory=lambda: FakeClient())
     at = AppTest.from_string(script, default_timeout=10)
     at.run(timeout=10)
 
-    assert any("Continue Better" in getattr(item, "value", "") for item in at.markdown)
+    assert any("AI Technical Assistant" in getattr(item, "value", "") for item in at.markdown)
     assert any(selectbox.label == "Model" for selectbox in at.selectbox)
     assert any(selectbox.label == "Policy" for selectbox in at.selectbox)
     assert any(button.label == "Approve" for button in at.button)
     assert any(button.label == "Reject" for button in at.button)
     assert any(button.label == "New Session" for button in at.button)
     assert any(selectbox.label == "Current session" for selectbox in at.selectbox)
+
+
+def test_streamlit_app_streams_approval_resume_into_chat_column():
+    script = """
+import streamlit as st
+from frontend.app import run_app
+
+class FakeClient:
+    def __init__(self):
+        st.session_state.setdefault(
+            "fake_messages",
+            [
+                {"role": "user", "content": "Create the file please"},
+                {"role": "assistant", "content": "Waiting for approval."},
+            ],
+        )
+        st.session_state.setdefault("fake_approval_done", False)
+
+    def capabilities(self):
+        return {"webSearch": True, "rag": True, "interactiveTerminal": True, "clarification": True}
+
+    def models(self):
+        return {"models": [{"id": "test-model"}]}
+
+    def list_sessions(self):
+        return [{"id": "s1", "title": "Session One", "message_count": len(st.session_state["fake_messages"])}]
+
+    def create_session(self, title=None):
+        return {"session_id": "s1"}
+
+    def get_session_messages(self, session_id, limit=None):
+        return list(st.session_state["fake_messages"])
+
+    def list_runs(self, session_id):
+        state = "completed" if st.session_state["fake_approval_done"] else "awaiting_approval"
+        return [{"run_id": "run-1", "state": state, "phase": "execute"}]
+
+    def get_run(self, run_id):
+        if st.session_state["fake_approval_done"]:
+            return {
+                "run_id": "run-1",
+                "events": [
+                    {"type": "approval_decision", "runId": "run-1", "actionId": "approval-1", "decision": "approved", "timestamp": "2026-03-11T12:00:01+00:00"},
+                    {"type": "run_state", "runId": "run-1", "state": "completed", "timestamp": "2026-03-11T12:00:02+00:00"},
+                ],
+            }
+        return {
+            "run_id": "run-1",
+            "events": [
+                {"type": "run_state", "runId": "run-1", "state": "awaiting_approval", "timestamp": "2026-03-11T12:00:00+00:00"},
+                {"type": "approval_required", "runId": "run-1", "actionId": "approval-1", "name": "write_file", "riskLevel": "risky", "arguments": "{}"},
+            ],
+        }
+
+    def update_session(self, session_id, title):
+        return {"id": session_id, "title": title}
+
+    def delete_session(self, session_id):
+        return {"ok": True}
+
+    def fs_tree(self):
+        return {"root": "/tmp", "children": []}
+
+    def fs_read(self, path):
+        return {"path": path, "content": ""}
+
+    def rag_list_profiles(self):
+        return {"profiles": []}
+
+    def rag_get_session_files(self, session_id):
+        return {"files": []}
+
+    def rag_get_profile_files(self, profile_name):
+        return {"files": []}
+
+    def rag_list_index_jobs(self, limit=None):
+        return {"jobs": []}
+
+    def rag_get_session_memory(self, session_id, limit=None):
+        return {"config": {"enabled": True, "thresholdPct": 0.9, "tokenBudget": 12000}, "summary": {"text": "", "entryCount": 0, "estimatedTokens": 0}, "entries": []}
+
+    def matrix_catalog(self):
+        return {"scenarios": [], "profiles": [], "surfaces": []}
+
+    def matrix_list_reports(self, limit=None):
+        return []
+
+    def matrix_list_jobs(self, limit=None):
+        return []
+
+    def stream_chat(self, payload):
+        return iter([])
+
+    def stream_approval(self, approval_id, decision):
+        st.session_state["fake_approval_done"] = True
+        st.session_state["fake_messages"].append({"role": "assistant", "content": "Approved and completed."})
+        return iter(
+            [
+                {"type": "approval_decision", "runId": "run-1", "actionId": approval_id, "decision": decision, "timestamp": "2026-03-11T12:00:01+00:00"},
+                {"type": "token", "token": "Approved and completed."},
+                {"type": "run_state", "runId": "run-1", "state": "completed", "timestamp": "2026-03-11T12:00:02+00:00"},
+            ]
+        )
+
+    def stream_clarification(self, clarification_id, answer):
+        return iter([])
+
+run_app(client_factory=lambda: FakeClient())
+"""
+    at = AppTest.from_string(script, default_timeout=10)
+    at.run(timeout=10)
+
+    next(button for button in at.button if button.label == "Approve").click()
+    at.run(timeout=10)
+
+    assert any("Approved and completed." in getattr(item, "value", "") for item in at.markdown)

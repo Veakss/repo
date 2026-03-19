@@ -4,7 +4,51 @@
 
 - Branch target: `codex/streamlit-python-only`
 - Remote push: available on `origin`
-- Current phase: lot 6 complete
+- Current phase: enterprise Thales adaptation landed; next focus is live behavior quality and Windows/Thales operational validation
+
+## Current Project State
+
+- Frontend Streamlit:
+  - `frontend/app.py` is now the single canonical Streamlit shell
+  - the active shell is aligned with `streamlit_python_only` and no longer depends on the transition shim
+  - chat, clarification resume, and approval resume all render back into the main conversation column
+  - clarification UI state is more robust against stale/replayed events
+- Matrix Lab:
+  - backend relay reports are now much more product-readable
+  - grading separates infra, flow, clarification quality, message ordering, source quality, exact output, RAG quality, policy, truth, and final contract
+  - Streamlit Matrix UI now highlights priority failures, weakest dimensions, and scenario-level weak spots
+- Runtime/providers:
+  - final-answer contract detection, diagnostics, and one-pass repair are now implemented
+  - provider capabilities are explicit and surfaced by the sidecar
+  - Thales/textual replay style providers now enforce sequential single-tool execution
+  - provider resolution now supports an enterprise YAML path compatible with Windows/Thales `config.yaml` conventions
+  - provider diagnostics now expose config source, provider family, and effective single-tool loop constraints
+  - enterprise YAML resolution now supports AMA/seamlessdiag-style `llm.default` and `llm.models`
+  - Thales provider normalization now maps `mistralai` to the internal `thales` provider family
+  - sidecar `/v1/capabilities` and `/v1/models` now expose the effective runtime provider, not only the catalog default
+- Evaluation loop:
+  - deterministic Matrix verification is green on the updated dimensions
+  - targeted runtime/API regression checks are green
+  - targeted Matrix live verification improved on the core web/terminal exact-output cases
+- live product gaps are now concentrated in model/runtime behavior quality, especially multi-turn RAG and provider stability
+
+## Current Frontend Entry Point
+
+- canonical Streamlit UI: `frontend/app.py`
+- launch scripts updated:
+  - `scripts/run_frontend.sh`
+  - `scripts/run_all.sh`
+
+## Current Known Gaps
+
+- Remaining high-signal live Matrix gap:
+  - `rag_session_docs_multiturn_backend`
+- Live capability evaluation remains unstable and should not yet be treated as green:
+  - `interactive_terminal`
+  - `message_order_basic`
+  - `clarification_food_app`
+  - exact-output scenarios can still vary depending on the provider/model run
+- These gaps are now diagnosed as product-quality/behavior issues rather than basic backend wiring failures.
 
 ## Done
 
@@ -91,22 +135,24 @@
 
 ## In Progress
 
-- post-parity cleanup and future refinements
+- multi-turn RAG/final-answer quality improvements
+- live capability stability improvements on real providers
 
 ## Next Verification Point
 
 - optional future enhancements stay regression-free
 - Thales-specific live validation can be rerun when credentials are available on this machine
-- remaining JS parity gaps are now concentrated in richer UI polish and advanced run-control behaviors, not the basic runtime contract
+- remaining Python product gaps are now concentrated in live provider behavior quality, not the basic runtime contract
 - targeted Matrix parity should keep improving on:
-  - web final-answer/source formatting
-  - terminal sequential final-answer contract quality
   - multi-turn RAG answer quality on backend relay
-- UI parity should keep improving on:
-  - denser, more polished component styling
-  - stronger visual hierarchy for session navigation vs chat vs inspector
-  - reducing remaining Streamlit-native rough edges
-  - manual verification of the remaining global accent overrides in live browser rendering
+- live capability checks should keep improving on:
+  - `interactive_terminal`
+  - `message_order_basic`
+  - clarification quality/order stability
+- Windows/Thales readiness should keep improving on:
+  - enterprise SSL/proxy validation
+  - live sequential single-tool behavior under a real Thales endpoint
+  - Windows run scripts and operator-facing startup guidance for enterprise `config.yaml`
 
 ## Update Log
 
@@ -148,13 +194,13 @@
 - verified `pytest` across the full Python subtree including Streamlit tests: `20 passed`
 - verified `python scripts/verify_lot3.py`
 - verified `python scripts/verify_lot3_live.py` with a real backend, sidecar, Mongo daemon, and OpenRouter-backed response
-- added `src/continue_better_py/rag.py` for Mongo-backed RAG storage, indexing, lookup, and session memory
+- added `src/streamlit_python_only/rag.py` for Mongo-backed RAG storage, indexing, lookup, and session memory
 - added backend and sidecar RAG routes for profiles, file import/list/delete, index jobs, memory, and lookup
 - added the `rag_lookup` runtime tool and exposed the RAG control surface in Streamlit
 - verified `pytest` across the full Python subtree including RAG coverage: `23 passed`
 - verified `python scripts/verify_lot4.py`
 - verified `python scripts/verify_lot4_live.py` with real import, indexing, lookup, memory, backend, sidecar, Mongo, and a real model response of `AURORA_PHASE4`
-- added `src/continue_better_py/matrix_catalog.py` and `src/continue_better_py/matrix.py` for the Python Matrix Lab catalog, runner, grading, aggregation, and persistence
+- added `src/streamlit_python_only/matrix_catalog.py` and `src/streamlit_python_only/matrix.py` for the Python Matrix Lab catalog, runner, grading, aggregation, and persistence
 - added backend Matrix routes for catalog, jobs, reports, and compare
 - rebuilt the Streamlit Matrix tab to launch jobs, inspect job progress, browse reports, filter results, and compare reports
 - added `tests/test_matrix_service.py` and expanded backend/frontend coverage for Matrix flows
@@ -169,7 +215,12 @@
 - verified `pytest` across the full Python subtree after lot 6 changes: `28 passed`
 - verified `python scripts/verify_lot6.py`
 - verified `python scripts/verify_lot6_live.py` with real provider probe, backend, sidecar, Mongo, and terminal execution
-- added `src/continue_better_py/terminal_manager.py` to port the old PTY terminal contract into Python
+- added `src/streamlit_python_only/terminal_manager.py` to port the old PTY terminal contract into Python
+
+- backend/sidecar/core package migration is now underway:
+  - the runtime package has been renamed from `continue_better_py` to `streamlit_python_only`
+  - backend, sidecar, scripts, and tests now import the new package name
+  - a temporary `src/continue_better_py/__init__.py` compatibility shim remains in place so the frontend can keep working until its own import pass is migrated
 - expanded runtime/tool registry support for interactive terminal tools and added backend + sidecar terminal endpoints
 - updated the Streamlit terminal tab to embed a custom browser-side terminal surface that talks directly to the backend terminal APIs
 - added runtime/API regression coverage for interactive terminal flows
@@ -224,3 +275,92 @@
   - verified live through Chrome DevTools MCP:
     - standard chat send returns a real assistant answer
     - inspector `Files` panel is reachable and renders file preview content
+- completed a frontend autonomy + Matrix precision pass:
+  - `frontend/app.py` now imports `streamlit_python_only.settings` directly instead of the `continue_better_py` shim
+  - streaming assistant output and clarification resume output now render inside the main chat column, after the already-rendered user turn
+  - clarification state derivation now ignores stale/replayed resolved clarification events
+  - Matrix grading now separates infrastructure, flow sequence, clarification quality, message ordering, and final contract quality
+  - Matrix catalog now includes explicit coverage for workspace exploration before clarification and terminal exact-output behavior
+### 2026-03-13
+
+- recentered the frontend migration on the real Streamlit shell:
+  - the Streamlit frontend has been collapsed back to a single entrypoint: `frontend/app.py`
+  - the temporary duplicate shell `frontend/app_v2.py` has been removed to avoid drift and maintenance split
+  - run scripts now launch `frontend/app.py`
+  - Streamlit frontend tests now target `app.py`
+- clarified the migration picture:
+  - the compatibility shim `src/continue_better_py/__init__.py` still exists, but it is no longer needed by the active frontend path
+  - the remaining migration work is mostly about residual references, documentation accuracy, and runtime/product behavior quality rather than frontend package wiring
+  - verified `./.venv/bin/pytest tests/test_streamlit_app.py tests/test_ui_state.py tests/test_matrix_service.py -q`: `7 passed`
+  - verified `./.venv/bin/python -m compileall frontend src/streamlit_python_only tests`
+- completed an approval UX parity follow-up:
+  - approval decisions now resume the run from the main chat column instead of rendering from the inspector panel
+  - clarification question/option rendering now uses shared deduplicated helpers to reduce repeated wording across dialog + inspector
+  - Matrix backend message snapshots now fail soft to an empty capture instead of crashing the whole job when a surface/mock does not expose session-message retrieval
+  - verified `./.venv/bin/pytest tests/test_streamlit_app.py tests/test_ui_state.py tests/test_matrix_service.py tests/test_backend_api.py -q`: `14 passed`
+- improved the evaluation loop around Matrix and live capabilities:
+  - `scripts/evaluate_capabilities.py` now also checks persisted message ordering, clarification behavior, and exact-output tasks in addition to the previous terminal/approval checks
+  - the Streamlit Matrix panel now surfaces failing dimensions and scenario-level weak spots directly in the report view
+  - `scripts/verify_lot5.py` and `scripts/verify_lot5_live.py` now verify that the new Matrix dimensions are present in generated reports
+  - verified `./.venv/bin/python scripts/verify_lot5.py`
+  - verified `./.venv/bin/python -m compileall frontend src/streamlit_python_only tests scripts`
+- refined Matrix dimension coverage for the product-quality gaps that still matter most:
+  - added dedicated `sourceQuality`, `exactOutput`, and `ragQuality` dimensions in Matrix grading
+  - wired those dimensions into `web_latest_with_sources`, exact-output scenarios, and `rag_session_docs_multiturn_backend`
+  - expanded mocked Matrix regression coverage so those dimensions are exercised and asserted in tests
+  - verified `./.venv/bin/pytest tests/test_matrix_service.py tests/test_backend_api.py tests/test_streamlit_app.py tests/test_ui_state.py -q`: `14 passed`
+- improved Matrix/operator readability for the next live debugging loop:
+  - the Streamlit Matrix report view now sorts runs by severity and highlights weakest dimensions across the whole report
+  - scenario summaries are now sorted by weakest pass rate / highest hard-fail pressure
+  - `scripts/evaluate_capabilities.py` now emits top-level failed task IDs, ordering failures, and clarification-task summaries for quicker live triage
+  - verified `./.venv/bin/python scripts/verify_lot5.py`
+  - verified `./.venv/bin/python -m compileall frontend src/streamlit_python_only tests scripts`
+
+### 2026-03-17
+
+- completed a runtime/provider contract hardening pass:
+  - added explicit provider capabilities to the Python provider layer
+  - exposed provider capabilities through the sidecar capability/model surfaces
+  - added final-answer contract detection for language, exact output, sources, and grounding
+  - added one-pass final-answer repair with runtime diagnostics instead of silent drift
+  - enforced sequential single-tool collapse for Thales/textual replay style providers
+  - normalized web search URLs so final-answer source repair has stable targets
+- expanded automated validation around the runtime contract:
+  - added runtime tests for exact-output repair, web-with-sources repair, wrong-language repair, single-tool collapse, and one-pass repair limits
+  - added sidecar/backend tests for provider capability exposure and runtime diagnostic relay
+  - verified `python3 -m compileall streamlit-python-only/src/streamlit_python_only`
+  - verified `streamlit-python-only/.venv/bin/pytest streamlit-python-only/tests/test_runtime.py streamlit-python-only/tests/test_sidecar_api.py streamlit-python-only/tests/test_backend_api.py`: `42 passed`
+- reran targeted live validation on a dedicated backend/sidecar pair:
+  - pass: `web_latest_with_sources`
+  - pass: `terminal_sequential_inspect`
+  - pass: `terminal_exact_output`
+  - hard fail: `rag_session_docs_multiturn_backend`
+- reran `scripts/evaluate_capabilities.py` live and confirmed the loop is still not stable enough to call green across the board:
+  - observed failures include `interactive_terminal`, `message_order_basic`, `clarification_food_app`, and some exact-output variability depending on the model run
+- completed the enterprise Thales adaptation pass:
+  - added multi-source provider resolution priority:
+    - explicit override
+    - `tools/config.yaml`
+    - `config.yaml`
+    - local provider catalog
+    - `.env` fallback
+  - added enterprise YAML parsing compatible with AMA/seamlessdiag `llm.default` and `llm.models`
+  - mapped `mistralai` onto the internal `thales` provider family
+  - allowed enterprise YAML API keys with env override precedence
+  - expanded provider capabilities with:
+    - `requiresSequentialToolLoop`
+    - `providerFamily`
+    - `configPath`
+  - injected explicit sequential-tool provider guidance into the runtime system prompt
+  - ensured sidecar capability/model surfaces report the effective provider capabilities coming from the runtime resolver
+  - expanded provider/runtime/sidecar regression coverage around enterprise YAML and Thales sequential-tool behavior
+  - verified targeted tests:
+    - `tests/test_providers.py`
+    - `tests/test_runtime.py`
+    - `tests/test_sidecar_api.py`
+    - result: `47 passed`
+  - verified `scripts/probe_provider.py --config-path ...` resolves enterprise YAML in `textual_replay` mode with:
+    - `providerFamily = thales`
+    - `configSource = enterprise_yaml`
+    - `supportsMultiToolTurn = false`
+    - `requiresSequentialToolLoop = true`

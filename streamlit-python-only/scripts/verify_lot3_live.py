@@ -70,7 +70,7 @@ def main() -> int:
             "BACKEND_BASE_URL": f"http://127.0.0.1:{BACKEND_PORT}",
             "WORKSPACE_ROOT": str(workspace_root),
             "ARTIFACT_ROOT": str(artifact_root),
-            "MONGODB_DATABASE": f"continue_better_python_phase3_live_{run_stamp}",
+            "MONGODB_DATABASE": f"streamlit_python_only_phase3_live_{run_stamp}",
         }
     )
     database_name = env["MONGODB_DATABASE"]

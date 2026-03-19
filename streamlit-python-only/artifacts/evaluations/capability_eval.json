@@ -1,52 +1,143 @@
 {
   "model": "google/gemini-2.5-flash-lite-preview-09-2025",
-  "passed": 3,
-  "total": 3,
+  "passed": 1,
+  "total": 6,
+  "pass_rate": 0.1667,
+  "failed_task_ids": [
+    "message_order_basic",
+    "terminal_single_shot",
+    "terminal_exact_output",
+    "interactive_terminal",
+    "clarification_food_app"
+  ],
+  "ordering_failures": [
+    "clarification_food_app"
+  ],
+  "clarification_tasks": [
+    "clarification_food_app"
+  ],
   "results": [
     {
-      "id": "terminal_single_shot",
-      "session_id": "e0198274-2229-499d-9224-d94ab69d3fdd",
+      "id": "message_order_basic",
+      "session_id": "be73f588-3493-47af-b06c-7a28f9edd2da",
       "model": "google/gemini-2.5-flash-lite-preview-09-2025",
       "workspace_root": "/Users/victor/Documents/continue-better",
-      "passed": true,
-      "assistant_text": "TERMINAL_SINGLE_SHOT_OK:ls -F",
+      "passed": false,
+      "assistant_text": "MESSAGE_ORDER_OK",
+      "called_tools": [],
+      "approvals": 0,
+      "clarifications": 0,
+      "terminal_events": [],
+      "session_message_roles": [
+        "user",
+        "assistant"
+      ],
+      "message_order_ok": true,
+      "file_check": null,
+      "error": null
+    },
+    {
+      "id": "terminal_single_shot",
+      "session_id": "5208ac7a-293a-4d0a-afd2-f0922d617933",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "workspace_root": "/Users/victor/Documents/continue-better",
+      "passed": false,
+      "assistant_text": "(empty response)",
       "called_tools": [
         "run_terminal"
       ],
       "approvals": 0,
+      "clarifications": 0,
       "terminal_events": [
         "terminal_opened",
         "terminal_exit"
       ],
+      "session_message_roles": [
+        "user",
+        "assistant"
+      ],
+      "message_order_ok": true,
+      "file_check": null,
+      "error": null
+    },
+    {
+      "id": "terminal_exact_output",
+      "session_id": "6144689d-e431-431c-a429-f261f327cf47",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "workspace_root": "/Users/victor/Documents/continue-better",
+      "passed": false,
+      "assistant_text": "(empty response)",
+      "called_tools": [
+        "run_terminal"
+      ],
+      "approvals": 0,
+      "clarifications": 0,
+      "terminal_events": [
+        "terminal_opened",
+        "terminal_exit"
+      ],
+      "session_message_roles": [
+        "user",
+        "assistant"
+      ],
+      "message_order_ok": true,
       "file_check": null,
       "error": null
     },
     {
       "id": "interactive_terminal",
-      "session_id": "ca0f7cf1-f071-493f-a0e3-51a38b1ac4af",
+      "session_id": "878042c7-3734-4e68-86b2-9f7c0e02f89e",
       "model": "google/gemini-2.5-flash-lite-preview-09-2025",
       "workspace_root": "/Users/victor/Documents/continue-better",
-      "passed": true,
-      "assistant_text": "The terminal output from `pwd` is not explicitly shown in the provided snapshot/wait_for_output, as the output seems to be mixed with shell initialization messages and the prompt. However, the sequence of operations requested has been executed: the terminal was opened, `pwd` was written, output was waited for, a snapshot was taken, and the terminal was closed. Assuming the `pwd` command executed successfully in the interactive session, I will now provide the required final answer. INTERACTIVE_TERMINAL_OK",
+      "passed": false,
+      "assistant_text": "(empty response)",
       "called_tools": [
         "open_terminal",
         "terminal_write",
         "terminal_wait_for_output",
-        "terminal_snapshot",
         "terminal_close"
       ],
       "approvals": 0,
+      "clarifications": 0,
       "terminal_events": [
         "terminal_opened",
         "terminal_control_changed",
+        "terminal_input",
+        "terminal_closed",
         "terminal_control_changed"
       ],
+      "session_message_roles": [
+        "user",
+        "assistant"
+      ],
+      "message_order_ok": true,
+      "file_check": null,
+      "error": null
+    },
+    {
+      "id": "clarification_food_app",
+      "session_id": "61904f1e-bb68-4fb7-b6b1-06c42982d32f",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "workspace_root": "/Users/victor/Documents/continue-better",
+      "passed": false,
+      "assistant_text": "",
+      "called_tools": [
+        "request_clarification"
+      ],
+      "approvals": 0,
+      "clarifications": 1,
+      "terminal_events": [],
+      "session_message_roles": [
+        "user",
+        "assistant"
+      ],
+      "message_order_ok": false,
       "file_check": null,
       "error": null
     },
     {
       "id": "approval_write_file",
-      "session_id": "0aebced5-2e7d-4ae1-b30a-706977505197",
+      "session_id": "fdee5a5c-133c-41b5-846d-164430a8325c",
       "model": "google/gemini-2.5-flash-lite-preview-09-2025",
       "workspace_root": "/Users/victor/Documents/continue-better",
       "passed": true,
@@ -55,7 +146,13 @@
         "write_file"
       ],
       "approvals": 1,
+      "clarifications": 0,
       "terminal_events": [],
+      "session_message_roles": [
+        "user",
+        "assistant"
+      ],
+      "message_order_ok": true,
       "file_check": true,
       "error": null
     }

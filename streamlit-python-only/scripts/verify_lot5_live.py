@@ -70,7 +70,7 @@ def main() -> int:
     run_stamp = str(int(time.time()))
     artifact_root = PROJECT_ROOT.joinpath("artifacts", "live_phase5_artifacts")
     artifact_root.mkdir(parents=True, exist_ok=True)
-    database_name = f"continue_better_python_phase5_live_{run_stamp}"
+    database_name = f"streamlit_python_only_phase5_live_{run_stamp}"
 
     env = os.environ.copy()
     env.update(
@@ -125,6 +125,8 @@ def main() -> int:
                 "artifact_exists": Path(report["artifact_path"]).exists(),
                 "reports_listed": any(item["report_id"] == report_id for item in client.get("/v1/matrix/reports").json()["reports"]),
                 "compare_runs": compare.json()["comparison"]["summary"]["currentRuns"] == 2,
+                "infra_dimension_present": "infra" in report["results"][0]["grade"]["dimensions"] if report["results"] else False,
+                "message_order_dimension_present": "messageOrder" in report["results"][0]["grade"]["dimensions"] if report["results"] else False,
             }
             print(json.dumps(checks, indent=2))
             return 0 if all(value is True or isinstance(value, str) for value in checks.values()) else 1

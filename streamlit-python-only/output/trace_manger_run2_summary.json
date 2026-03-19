@@ -1,0 +1,62 @@
+{
+  "event_counts": {
+    "run_state": 2,
+    "run_phase_changed": 3,
+    "run_diagnostic": 16,
+    "tool_call": 2,
+    "tool_result": 2,
+    "token": 306,
+    "done": 1
+  },
+  "tool_calls": [
+    {
+      "name": "write_file",
+      "arguments": "{\"path\": \"manger.txt\", \"content\": \"Recette de Pâtes à la Carbonara (Inspiration : CuisineAZ & Marmiton)\\n\\n**Ingrédients :**\\n*   400g de pâtes (spaghetti ou rigatoni)\\n*   200g de guanciale ou de lardons fumés\\n*   4 jaunes d'œufs (ou 3 jaunes et 1 œuf entier)\\n*   50g de Pecorino Romano râpé (ou un mélange Pecorino/Parmesan)\\n*   Poivre noir fraîchement moulu\\n*   Sel (attention, le guanciale et le fromage sont déjà salés)\\n\\n**Préparation :**\\n\\n1.  **Cuisson des pâtes :** Faites cuire les pâtes dans un grand volume d'eau bouillante salée selon les instructions du paquet pour une cuisson *al dente*.\\n2.  **Préparation de la viande :** Pendant ce temps, coupez le guanciale (ou les lardons) en dés ou en lanières. Faites-les revenir dans une poêle à feu moyen sans ajouter de matière grasse. Laissez-les dorer et devenir croustillants. Retirez la poêle du feu et réservez la viande et son gras.\\n3.  **Préparation de la crème d'œuf :** Dans un bol, fouettez les jaunes d'œufs avec le fromage râpé et une généreuse quantité de poivre noir fraîchement moulu. Le mélange doit être épais.\\n4.  **Égouttage et mélange :** Égouttez les pâtes *al dente* en conservant une louche d'eau de cuisson. Versez immédiatement les pâtes chaudes dans la poêle contenant le gras de cuisson (sans le feu allumé).\\n5.  **Émulsion :** Versez le mélange œufs/fromage sur les pâtes chaudes. Mélangez très rapidement et énergiquement. Si la sauce est trop épaisse, ajoutez un peu d'eau de cuisson réservée, cuillère par cuillère, jusqu'à obtenir une sauce crémeuse et onctueuse qui enrobe les pâtes (attention, il ne faut pas cuire les œufs, juste les émulsionner avec la chaleur des pâtes).\\n6.  **Finition :** Ajoutez les morceaux de guanciale croustillants et mélangez une dernière fois. Servez immédiatement avec un supplément de poivre et de fromage si désiré.\\n\\nBon appétit !\"}",
+      "actionId": "tool_write_file_IrFa4BDAUoK36vqV6bIz"
+    },
+    {
+      "name": "read_file",
+      "arguments": "{\"path\": \"manger.txt\"}",
+      "actionId": "tool_read_file_tab4b1khni9tTU6yrWib"
+    }
+  ],
+  "tool_results": [
+    {
+      "tool": null,
+      "status": null,
+      "ok": true,
+      "result_preview": ""
+    },
+    {
+      "tool": null,
+      "status": null,
+      "ok": true,
+      "result_preview": ""
+    }
+  ],
+  "diagnostic_codes": [
+    "provider_mode",
+    "provider_family",
+    "provider_config_source",
+    "provider_config_path",
+    "tool_routing_mode",
+    "final_contract_detected",
+    "goal_summary",
+    "realization_summary",
+    "goal_gap_summary",
+    "goal_summary",
+    "realization_summary",
+    "goal_gap_summary",
+    "goal_summary",
+    "realization_summary",
+    "goal_gap_summary",
+    "run_metrics"
+  ],
+  "final_text": "",
+  "file_state": {
+    "exists": true,
+    "size": 1886,
+    "preview": "Recette de Pâtes à la Carbonara (Inspiration : CuisineAZ & Marmiton)\n\n**Ingrédients :**\n*   400g de pâtes (spaghetti ou rigatoni)\n*   200g de guanciale ou de lardons fumés\n*   4 jaunes d'œufs (ou 3 jaunes et 1 œuf entier)\n*   50g de Pecorino Romano râpé (ou un mélange Pecorino/Parmesan)\n*   Poivre noir fraîchement moulu\n*   Sel (attention, le guanciale et le fromage sont déjà salés)\n\n**Préparation :**\n\n1.  **Cuisson des pâtes :** Faites cuire les pâtes dans un grand volume d'eau bouillante salée"
+  },
+  "raw_events_path": "/Users/victor/Documents/continue-better/streamlit-python-only/output/trace_manger_run2_events.jsonl"
+}

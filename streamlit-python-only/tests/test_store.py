@@ -4,13 +4,13 @@ import json
 
 import mongomock
 
-from continue_better_py.store import MongoStore
+from streamlit_python_only.store import MongoStore
 
 
 def build_store(tmp_path):
     return MongoStore(
         client=mongomock.MongoClient(),
-        database_name="continue_better_python_test",
+        database_name="streamlit_python_only_test",
         artifacts_root=tmp_path,
     )
 

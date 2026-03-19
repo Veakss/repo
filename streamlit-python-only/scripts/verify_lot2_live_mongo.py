@@ -8,9 +8,9 @@ import httpx
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
-from continue_better_py.backend_app import create_backend_app
-from continue_better_py.sidecar_app import create_sidecar_app
-from continue_better_py.store import MongoStore
+from streamlit_python_only.backend_app import create_backend_app
+from streamlit_python_only.sidecar_app import create_sidecar_app
+from streamlit_python_only.store import MongoStore
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -26,7 +26,7 @@ def parse_sse_payloads(text: str) -> list[dict]:
 
 def main() -> int:
     load_dotenv(PROJECT_ROOT / ".env")
-    database_name = f"continue_better_python_live_{int(time.time())}"
+    database_name = f"streamlit_python_only_live_{int(time.time())}"
     artifacts_root = PROJECT_ROOT.joinpath("artifacts", "live_mongo_checks")
     artifacts_root.mkdir(parents=True, exist_ok=True)
 

@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "continue-better-python"
+name = "streamlit-python-only"
 version = "0.1.0"
-description = "Python-only rewrite of Continue Better with Streamlit, FastAPI, LangGraph, and MongoDB."
+description = "Self-contained Streamlit/FastAPI/LangGraph application with MongoDB-backed runtime services."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -30,6 +30,9 @@ memory = [
 dev = [
   "mongomock>=4.1.2",
   "pytest>=8.3.0",
+]
+mcp = [
+  "fastmcp>=0.2.0",
 ]
 
 [tool.setuptools]

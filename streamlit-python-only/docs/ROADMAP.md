@@ -2,7 +2,7 @@
 
 ## Objective
 
-Reach functional parity with the current Continue Better application in a Python-only implementation:
+Reach functional parity with the current Continue Better baseline in a Python-only implementation branded as AI Technical Assistant:
 
 - UI in Streamlit, with custom embedded components where needed
 - Runtime/orchestration only through LangChain, LangGraph, and LangMem when appropriate
@@ -38,6 +38,8 @@ The target is not a simplified clone. The target is the same product, ported and
 - Every meaningful milestone must update:
   - `docs/STATUS.md`
   - `docs/HANDOFF.md`
+- Future-priority planning should also stay aligned with:
+  - `docs/FUTURE_PRIORITIES.md`
 - Commit locally at the end of each stable milestone
 - Push whenever a remote is available
 

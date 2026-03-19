@@ -1,0 +1,3367 @@
+{
+  "report_id": "matrix-1773745099943",
+  "generatedAt": "2026-03-17T10:58:19.943021+00:00",
+  "models": [
+    "google/gemini-2.5-flash-lite-preview-09-2025"
+  ],
+  "repeat": 1,
+  "profiles": [
+    "baseline_current"
+  ],
+  "surfaces": [
+    "backend_relay",
+    "direct_runtime"
+  ],
+  "envMatrix": [
+    {
+      "profile": "baseline_current",
+      "surface": "backend_relay",
+      "profileEnv": {},
+      "surfaceEnv": {},
+      "effective": {}
+    },
+    {
+      "profile": "baseline_current",
+      "surface": "direct_runtime",
+      "profileEnv": {},
+      "surfaceEnv": {},
+      "effective": {}
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "clarification_resume_food_app_web_multiturn",
+      "variantGroup": "message_order_runtime",
+      "category": "multi_turn",
+      "description": "A broad app request should also resume cleanly when the user narrows the scope to a simple web MVP.",
+      "allowWrites": false,
+      "toolToggles": {
+        "clarification": true,
+        "appActions": false,
+        "webSearch": false,
+        "rag": false
+      },
+      "expectedState": [
+        "completed"
+      ],
+      "expectedToolsMode": "must_include",
+      "expectedTools": [
+        "request_clarification"
+      ],
+      "turns": [
+        {
+          "prompt": "Help me create a food application.",
+          "expectedState": [
+            "awaiting_clarification"
+          ],
+          "clarification": "must_happen",
+          "clarificationQuality": {
+            "requireOptionsMin": 1,
+            "requireOptionsMax": 3,
+            "maxQuestions": 3
+          },
+          "expectedToolsMode": "must_include",
+          "expectedTools": [
+            "request_clarification"
+          ],
+          "messageOrder": {
+            "tailRoles": [
+              "user",
+              "assistant"
+            ]
+          }
+        },
+        {
+          "prompt": "Make it a simple web MVP with restaurant search and favorites.",
+          "expectedState": [
+            "completed"
+          ],
+          "clarification": "must_not_happen",
+          "messageOrder": {
+            "tailRoles": [
+              "user",
+              "assistant"
+            ]
+          },
+          "final": {
+            "includesOneOf": [
+              "/web/i",
+              "/restaurant/i",
+              "/favorites?/i",
+              "/mvp/i"
+            ],
+            "minNonWhitespaceChars": 24
+          }
+        }
+      ],
+      "messageOrder": {
+        "tailRoles": [
+          "user",
+          "assistant"
+        ]
+      },
+      "final": {
+        "includesOneOf": [
+          "/web/i",
+          "/restaurant/i",
+          "/favorites?/i",
+          "/mvp/i"
+        ],
+        "minNonWhitespaceChars": 24
+      }
+    },
+    {
+      "id": "clarification_resume_needs_second_question_multiturn",
+      "variantGroup": "message_order_runtime",
+      "category": "multi_turn",
+      "description": "If the follow-up answer stays too broad, the runtime should be allowed to ask one more clarification cleanly.",
+      "allowWrites": false,
+      "toolToggles": {
+        "clarification": true,
+        "appActions": false,
+        "webSearch": false,
+        "rag": false
+      },
+      "expectedState": [
+        "awaiting_clarification"
+      ],
+      "expectedToolsMode": "must_include",
+      "expectedTools": [
+        "request_clarification"
+      ],
+      "turns": [
+        {
+          "prompt": "Help me create a food application.",
+          "expectedState": [
+            "awaiting_clarification"
+          ],
+          "clarification": "must_happen",
+          "clarificationQuality": {
+            "requireOptionsMin": 1,
+            "requireOptionsMax": 3,
+            "maxQuestions": 3
+          },
+          "expectedToolsMode": "must_include",
+          "expectedTools": [
+            "request_clarification"
+          ],
+          "messageOrder": {
+            "tailRoles": [
+              "user",
+              "assistant"
+            ]
+          }
+        },
+        {
+          "prompt": "A mobile app.",
+          "expectedState": [
+            "awaiting_clarification"
+          ],
+          "clarification": "must_happen",
+          "clarificationQuality": {
+            "requireOptionsMin": 1,
+            "requireOptionsMax": 3,
+            "maxQuestions": 3
+          },
+          "messageOrder": {
+            "tailRoles": [
+              "user",
+              "assistant"
+            ]
+          }
+        }
+      ],
+      "messageOrder": {
+        "tailRoles": [
+          "user",
+          "assistant"
+        ]
+      }
+    }
+  ],
+  "aggregate": {
+    "byModel": {
+      "google/gemini-2.5-flash-lite-preview-09-2025": {
+        "runs": 4,
+        "pass": 3,
+        "soft_fail": 1,
+        "hard_fail": 0,
+        "score": 63.5,
+        "maxScore": 64.0,
+        "avgScore": 0.9922,
+        "passRate": 0.75,
+        "passKLite": {
+          "groups": 4,
+          "pass": 3,
+          "rate": 0.75,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 4,
+            "pass": 3,
+            "soft_fail": 1,
+            "hard_fail": 0,
+            "score": 3.5,
+            "maxScore": 4.0,
+            "avgScore": 0.875,
+            "passRate": 0.75
+          },
+          "truth": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      }
+    },
+    "byScenario": {
+      "clarification_resume_food_app_web_multiturn": {
+        "runs": 2,
+        "pass": 1,
+        "soft_fail": 1,
+        "hard_fail": 0,
+        "score": 31.5,
+        "maxScore": 32.0,
+        "avgScore": 0.9844,
+        "passRate": 0.5,
+        "passKLite": {
+          "groups": 2,
+          "pass": 1,
+          "rate": 0.5,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 2,
+            "pass": 1,
+            "soft_fail": 1,
+            "hard_fail": 0,
+            "score": 1.5,
+            "maxScore": 2.0,
+            "avgScore": 0.75,
+            "passRate": 0.5
+          },
+          "truth": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      },
+      "clarification_resume_needs_second_question_multiturn": {
+        "runs": 2,
+        "pass": 2,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 32.0,
+        "maxScore": 32.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 2,
+          "pass": 2,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      }
+    },
+    "byProfile": {
+      "baseline_current": {
+        "runs": 4,
+        "pass": 3,
+        "soft_fail": 1,
+        "hard_fail": 0,
+        "score": 63.5,
+        "maxScore": 64.0,
+        "avgScore": 0.9922,
+        "passRate": 0.75,
+        "passKLite": {
+          "groups": 4,
+          "pass": 3,
+          "rate": 0.75,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 4,
+            "pass": 3,
+            "soft_fail": 1,
+            "hard_fail": 0,
+            "score": 3.5,
+            "maxScore": 4.0,
+            "avgScore": 0.875,
+            "passRate": 0.75
+          },
+          "truth": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      }
+    },
+    "bySurface": {
+      "backend_relay": {
+        "runs": 2,
+        "pass": 2,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 32.0,
+        "maxScore": 32.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 2,
+          "pass": 2,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      },
+      "direct_runtime": {
+        "runs": 2,
+        "pass": 1,
+        "soft_fail": 1,
+        "hard_fail": 0,
+        "score": 31.5,
+        "maxScore": 32.0,
+        "avgScore": 0.9844,
+        "passRate": 0.5,
+        "passKLite": {
+          "groups": 2,
+          "pass": 1,
+          "rate": 0.5,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 2,
+            "pass": 1,
+            "soft_fail": 1,
+            "hard_fail": 0,
+            "score": 1.5,
+            "maxScore": 2.0,
+            "avgScore": 0.75,
+            "passRate": 0.5
+          },
+          "truth": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      }
+    },
+    "byModelProfileSurface": {
+      "google/gemini-2.5-flash-lite-preview-09-2025::baseline_current::backend_relay": {
+        "runs": 2,
+        "pass": 2,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 32.0,
+        "maxScore": 32.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 2,
+          "pass": 2,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      },
+      "google/gemini-2.5-flash-lite-preview-09-2025::baseline_current::direct_runtime": {
+        "runs": 2,
+        "pass": 1,
+        "soft_fail": 1,
+        "hard_fail": 0,
+        "score": 31.5,
+        "maxScore": 32.0,
+        "avgScore": 0.9844,
+        "passRate": 0.5,
+        "passKLite": {
+          "groups": 2,
+          "pass": 1,
+          "rate": 0.5,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 2,
+            "pass": 1,
+            "soft_fail": 1,
+            "hard_fail": 0,
+            "score": 1.5,
+            "maxScore": 2.0,
+            "avgScore": 0.75,
+            "passRate": 0.5
+          },
+          "truth": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      }
+    },
+    "failureClusters": [
+      {
+        "class": "final_answer_discipline",
+        "runs": 1,
+        "scenarioIds": [
+          "clarification_resume_food_app_web_multiturn"
+        ],
+        "variantGroups": [
+          "message_order_runtime"
+        ],
+        "surfaces": [
+          "direct_runtime"
+        ],
+        "models": [
+          "google/gemini-2.5-flash-lite-preview-09-2025"
+        ],
+        "sameFailureAcrossVariants": false,
+        "surfaceScope": "provider_specific_only"
+      }
+    ],
+    "trendSignals": [
+      {
+        "variantGroup": "message_order_runtime",
+        "runs": 4,
+        "scenarioIds": [
+          "clarification_resume_food_app_web_multiturn",
+          "clarification_resume_needs_second_question_multiturn"
+        ],
+        "surfaces": [
+          "backend_relay",
+          "direct_runtime"
+        ],
+        "models": [
+          "google/gemini-2.5-flash-lite-preview-09-2025"
+        ],
+        "profiles": [
+          "baseline_current"
+        ],
+        "passRate": 0.75,
+        "hardFailRate": 0.0,
+        "nonPassRate": 0.25,
+        "distinctScenarioCount": 2,
+        "dominantFailureClass": "final_answer_discipline",
+        "failureClassDistribution": [
+          {
+            "class": "final_answer_discipline",
+            "runs": 1
+          }
+        ],
+        "sameFailureAcrossMajority": true,
+        "signalStrength": "weak",
+        "likelyCause": "provider_variability"
+      }
+    ]
+  },
+  "results": [
+    {
+      "scenarioId": "clarification_resume_food_app_web_multiturn",
+      "variantGroup": "message_order_runtime",
+      "category": "multi_turn",
+      "description": "A broad app request should also resume cleanly when the user narrows the scope to a simple web MVP.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "backend_relay",
+      "repeatIndex": 1,
+      "prompt": null,
+      "sessionId": "dfd7a20c-e848-41ec-ae71-97efc10b9094",
+      "runId": "f6ed0e3f-5d89-4069-a500-2e442cf6a931",
+      "summary": {
+        "state": "completed",
+        "tools": [
+          "request_clarification",
+          "list_directory",
+          "run_terminal",
+          "run_terminal",
+          "write_file",
+          "write_file"
+        ],
+        "toolArguments": [
+          {
+            "name": "request_clarification",
+            "arguments": "{\"question\": \"What kind of app do you want exactly: mobile app, web app, or something else?\"}"
+          },
+          {
+            "name": "list_directory",
+            "arguments": "{}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"mkdir FoodSearchMVP_Web_New_Simple\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"cd FoodSearchMVP_Web_New_Simple\"}"
+          },
+          {
+            "name": "write_file",
+            "arguments": "{\"path\": \"FoodSearchMVP_Web_New_Simple/app.py\", \"content\": \"import streamlit as st\\nimport pandas as pd\\n\\n# --- Data Setup ---\\n# In a real app, this would come from an API or database.\\n# For MVP, we use a static list.\\n@st.cache_data\\ndef load_data():\\n    data = {\\n        'Name': ['The Italian Place', 'Spicy Wok', 'Burger Heaven', 'Vegan Delight', 'Sushi Spot'],\\n        'Cuisine': ['Italian', 'Chinese', 'American', 'Vegan', 'Japanese'],\\n        'Rating': [4.5, 4.2, 4.8, 4.6, 4.4],\\n        'Address': ['123 Main St', '456 Oak Ave', '789 Pine Ln', '101 Maple Rd', '202 Birch Blvd']\\n    }\\n    df = pd.DataFrame(data)\\n    return df\\n\\ndf_restaurants = load_data()\\n\\n# --- Session State for Favorites ---\\nif 'favorites' not in st.session_state:\\n    st.session_state.favorites = set()\\n\\ndef add_to_favorites(restaurant_name):\\n    st.session_state.favorites.add(restaurant_name)\\n    st.toast(f'{restaurant_name} added to favorites!')\\n\\ndef remove_from_favorites(restaurant_name):\\n    st.session_state.favorites.discard(restaurant_name)\\n    st.toast(f'{restaurant_name} removed from favorites.')\\n\\n# --- Main App Layout ---\\nst.set_page_config(page_title=\\\"Food Search MVP\\\", layout=\\\"wide\\\")\\n\\nst.title(\\\"🍽️ Food Search MVP\\\")\\n\\n# --- Sidebar for Navigation and Favorites ---\\nst.sidebar.header(\\\"Navigation\\\")\\npage = st.sidebar.radio(\\\"Go to:\\\", (\\\"Search\\\", \\\"Favorites\\\"))\\n\\nif page == \\\"Search\\\":\\n    st.header(\\\"Restaurant Search\\\")\\n\\n    # Search Filters\\n    col1, col2 = st.columns([3, 1])\\n    with col1:\\n        search_term = st.text_input(\\\"Search by Name or Cuisine\\\", \\\"\\\")\\n    with col2:\\n        st.write(\\\"\\\") # Spacer\\n        st.write(\\\"\\\")\\n        st.write(\\\"\\\")\\n        if st.button(\\\"Clear Search\\\"):\\n            search_term = \\\"\\\"\\n\\n    # Filtering Logic\\n    filtered_df = df_restaurants[\\n        df_restaurants['Name'].str.contains(search_term, case=False) |\\n        df_restaurants['Cuisine'].str.contains(search_term, case=False)\\n    ]\\n\\n    st.subheader(f\\\"Found {len(filtered_df)} Restaurants\\\")\\n\\n    # Display Results\\n    for index, row in filtered_df.iterrows():\\n        is_favorite = row['Name'] in st.session_state.favorites\\n        \\n        # Create a card-like structure\\n        st.markdown(\\\"---\\\")\\n        col_card1, col_card2, col_card3 = st.columns([4, 1, 1])\\n        \\n        with col_card1:\\n            st.markdown(f\\\"### {row['Name']}\\\")\\n            st.write(f\\\"**Cuisine:** {row['Cuisine']} | **Rating:** ⭐{row['Rating']}\\\")\\n            st.caption(f\\\"Address: {row['Address']}\\\")\\n        \\n        with col_card2:\\n            if not is_favorite:\\n                if st.button(\\\"❤️ Favorite\\\", key=f\\\"fav_{index}\\\"):\\n                    add_to_favorites(row['Name'])\\n                    st.rerun()\\n            else:\\n                if st.button(\\\"💔 Unfavorite\\\", key=f\\\"unfav_{index}\\\"):\\n                    remove_from_favorites(row['Name'])\\n                    st.rerun()\\n        \\n        with col_card3:\\n            st.metric(\\\"Rating\\\", f\\\"{row['Rating']:.1f}\\\")\\n\\n\\nelif page == \\\"Favorites\\\":\\n    st.header(\\\"My Favorite Restaurants\\\")\\n    \\n    if not st.session_state.favorites:\\n        st.info(\\\"You haven't favorited any restaurants yet. Go to the Search tab to add some!\\\")\\n    else:\\n        favorite_names = list(st.session_state.favorites)\\n        favorites_df = df_restaurants[df_restaurants['Name'].isin(favorite_names)]\\n        \\n        for index, row in favorites_df.iterrows():\\n            col_fav1, col_fav2 = st.columns([4, 1])\\n            with col_fav1:\\n                st.markdown(f\\\"### {row['Name']}\\\")\\n                st.write(f\\\"**Cuisine:** {row['Cuisine']}\\\")\\n            with col_fav2:\\n                if st.button(\\\"Remove\\\", key=f\\\"remove_{index}\\\"):\\n                    remove_from_favorites(row['Name'])\\n                    st.rerun()\\n            st.markdown(\\\"---\\\")\\n\\n# --- Footer ---\\nst.sidebar.markdown(\\\"---\\\")\\nst.sidebar.caption(\\\"MVP built with Streamlit\\\")\"}"
+          },
+          {
+            "name": "write_file",
+            "arguments": "{\"path\": \"FoodSearchMVP_Web_New_Simple/requirements.txt\", \"content\": \"streamlit\\npandas\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "clarification_needed",
+            "level": "info",
+            "message": "Clarification requested: broad_product_prompt"
+          }
+        ],
+        "clarification": {
+          "type": "clarification_required",
+          "runId": "f6ed0e3f-5d89-4069-a500-2e442cf6a931",
+          "clarificationId": "c10d0d24-44da-4e24-8d48-2103b9da5123",
+          "question": "What kind of app do you want exactly: mobile app, web app, or something else?",
+          "questions": [
+            "What kind of app do you want exactly: mobile app, web app, or something else?"
+          ],
+          "options": [
+            {
+              "label": "Web app"
+            },
+            {
+              "label": "Mobile app"
+            },
+            {
+              "label": "Something else"
+            }
+          ],
+          "allowFreeText": true,
+          "timestamp": "2026-03-17T10:57:57.027124+00:00"
+        },
+        "finalText": "This completes the initial setup for the web MVP: a directory, the main application file (`app.py`), and the dependency file (`requirements.txt`). The next step would be to install dependencies and run the app, which I can do using the terminal. Do you want me to proceed with installing dependencies and running the Streamlit app now? (Note: Running the app will start a server process.)",
+        "error": null,
+        "repairCount": 2,
+        "toolCallCount": 6,
+        "latencyMs": 7774,
+        "eventCount": 108,
+        "tokenCount": 64,
+        "eventSequence": [
+          "state:running",
+          "tool:request_clarification",
+          "state:awaiting_clarification",
+          "clarification",
+          "state:running",
+          "tool:list_directory",
+          "tool_result:list_directory",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:write_file",
+          "state:awaiting_approval",
+          "approval",
+          "approval_decision",
+          "tool_result:write_file",
+          "state:running",
+          "tool:write_file",
+          "state:awaiting_approval",
+          "approval",
+          "approval_decision",
+          "tool_result:write_file",
+          "state:running",
+          "state:completed"
+        ],
+        "messages": {
+          "count": 4,
+          "tailRoles": [
+            "user",
+            "assistant",
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Help me create a food application."
+            },
+            {
+              "role": "assistant",
+              "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+            },
+            {
+              "role": "user",
+              "content": "Make it a simple web MVP with restaurant search and favorites."
+            },
+            {
+              "role": "assistant",
+              "content": "This completes the initial setup for the web MVP: a directory, the main application file (`app.py`), and the dependency file (`requirements.txt`). The next step would be to install dependencies and run the app, which I can do using the term"
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "awaiting_clarification",
+            "tools": [
+              "request_clarification"
+            ],
+            "toolArguments": [
+              {
+                "name": "request_clarification",
+                "arguments": "{\"question\": \"What kind of app do you want exactly: mobile app, web app, or something else?\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "clarification_needed",
+                "level": "info",
+                "message": "Clarification requested: broad_product_prompt"
+              }
+            ],
+            "clarification": {
+              "type": "clarification_required",
+              "runId": "f6ed0e3f-5d89-4069-a500-2e442cf6a931",
+              "clarificationId": "c10d0d24-44da-4e24-8d48-2103b9da5123",
+              "question": "What kind of app do you want exactly: mobile app, web app, or something else?",
+              "questions": [
+                "What kind of app do you want exactly: mobile app, web app, or something else?"
+              ],
+              "options": [
+                {
+                  "label": "Web app"
+                },
+                {
+                  "label": "Mobile app"
+                },
+                {
+                  "label": "Something else"
+                }
+              ],
+              "allowFreeText": true,
+              "timestamp": "2026-03-17T10:57:57.027124+00:00"
+            },
+            "finalText": "",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 1,
+            "latencyMs": 0,
+            "eventCount": 12,
+            "tokenCount": 0,
+            "eventSequence": [
+              "state:running",
+              "tool:request_clarification",
+              "state:awaiting_clarification",
+              "clarification"
+            ],
+            "prompt": "Help me create a food application.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Help me create a food application."
+                },
+                {
+                  "role": "assistant",
+                  "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+                }
+              ]
+            }
+          },
+          {
+            "state": "completed",
+            "tools": [
+              "list_directory",
+              "run_terminal",
+              "run_terminal",
+              "write_file",
+              "write_file"
+            ],
+            "toolArguments": [
+              {
+                "name": "list_directory",
+                "arguments": "{}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"mkdir FoodSearchMVP_Web_New_Simple\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"cd FoodSearchMVP_Web_New_Simple\"}"
+              },
+              {
+                "name": "write_file",
+                "arguments": "{\"path\": \"FoodSearchMVP_Web_New_Simple/app.py\", \"content\": \"import streamlit as st\\nimport pandas as pd\\n\\n# --- Data Setup ---\\n# In a real app, this would come from an API or database.\\n# For MVP, we use a static list.\\n@st.cache_data\\ndef load_data():\\n    data = {\\n        'Name': ['The Italian Place', 'Spicy Wok', 'Burger Heaven', 'Vegan Delight', 'Sushi Spot'],\\n        'Cuisine': ['Italian', 'Chinese', 'American', 'Vegan', 'Japanese'],\\n        'Rating': [4.5, 4.2, 4.8, 4.6, 4.4],\\n        'Address': ['123 Main St', '456 Oak Ave', '789 Pine Ln', '101 Maple Rd', '202 Birch Blvd']\\n    }\\n    df = pd.DataFrame(data)\\n    return df\\n\\ndf_restaurants = load_data()\\n\\n# --- Session State for Favorites ---\\nif 'favorites' not in st.session_state:\\n    st.session_state.favorites = set()\\n\\ndef add_to_favorites(restaurant_name):\\n    st.session_state.favorites.add(restaurant_name)\\n    st.toast(f'{restaurant_name} added to favorites!')\\n\\ndef remove_from_favorites(restaurant_name):\\n    st.session_state.favorites.discard(restaurant_name)\\n    st.toast(f'{restaurant_name} removed from favorites.')\\n\\n# --- Main App Layout ---\\nst.set_page_config(page_title=\\\"Food Search MVP\\\", layout=\\\"wide\\\")\\n\\nst.title(\\\"🍽️ Food Search MVP\\\")\\n\\n# --- Sidebar for Navigation and Favorites ---\\nst.sidebar.header(\\\"Navigation\\\")\\npage = st.sidebar.radio(\\\"Go to:\\\", (\\\"Search\\\", \\\"Favorites\\\"))\\n\\nif page == \\\"Search\\\":\\n    st.header(\\\"Restaurant Search\\\")\\n\\n    # Search Filters\\n    col1, col2 = st.columns([3, 1])\\n    with col1:\\n        search_term = st.text_input(\\\"Search by Name or Cuisine\\\", \\\"\\\")\\n    with col2:\\n        st.write(\\\"\\\") # Spacer\\n        st.write(\\\"\\\")\\n        st.write(\\\"\\\")\\n        if st.button(\\\"Clear Search\\\"):\\n            search_term = \\\"\\\"\\n\\n    # Filtering Logic\\n    filtered_df = df_restaurants[\\n        df_restaurants['Name'].str.contains(search_term, case=False) |\\n        df_restaurants['Cuisine'].str.contains(search_term, case=False)\\n    ]\\n\\n    st.subheader(f\\\"Found {len(filtered_df)} Restaurants\\\")\\n\\n    # Display Results\\n    for index, row in filtered_df.iterrows():\\n        is_favorite = row['Name'] in st.session_state.favorites\\n        \\n        # Create a card-like structure\\n        st.markdown(\\\"---\\\")\\n        col_card1, col_card2, col_card3 = st.columns([4, 1, 1])\\n        \\n        with col_card1:\\n            st.markdown(f\\\"### {row['Name']}\\\")\\n            st.write(f\\\"**Cuisine:** {row['Cuisine']} | **Rating:** ⭐{row['Rating']}\\\")\\n            st.caption(f\\\"Address: {row['Address']}\\\")\\n        \\n        with col_card2:\\n            if not is_favorite:\\n                if st.button(\\\"❤️ Favorite\\\", key=f\\\"fav_{index}\\\"):\\n                    add_to_favorites(row['Name'])\\n                    st.rerun()\\n            else:\\n                if st.button(\\\"💔 Unfavorite\\\", key=f\\\"unfav_{index}\\\"):\\n                    remove_from_favorites(row['Name'])\\n                    st.rerun()\\n        \\n        with col_card3:\\n            st.metric(\\\"Rating\\\", f\\\"{row['Rating']:.1f}\\\")\\n\\n\\nelif page == \\\"Favorites\\\":\\n    st.header(\\\"My Favorite Restaurants\\\")\\n    \\n    if not st.session_state.favorites:\\n        st.info(\\\"You haven't favorited any restaurants yet. Go to the Search tab to add some!\\\")\\n    else:\\n        favorite_names = list(st.session_state.favorites)\\n        favorites_df = df_restaurants[df_restaurants['Name'].isin(favorite_names)]\\n        \\n        for index, row in favorites_df.iterrows():\\n            col_fav1, col_fav2 = st.columns([4, 1])\\n            with col_fav1:\\n                st.markdown(f\\\"### {row['Name']}\\\")\\n                st.write(f\\\"**Cuisine:** {row['Cuisine']}\\\")\\n            with col_fav2:\\n                if st.button(\\\"Remove\\\", key=f\\\"remove_{index}\\\"):\\n                    remove_from_favorites(row['Name'])\\n                    st.rerun()\\n            st.markdown(\\\"---\\\")\\n\\n# --- Footer ---\\nst.sidebar.markdown(\\\"---\\\")\\nst.sidebar.caption(\\\"MVP built with Streamlit\\\")\"}"
+              },
+              {
+                "name": "write_file",
+                "arguments": "{\"path\": \"FoodSearchMVP_Web_New_Simple/requirements.txt\", \"content\": \"streamlit\\npandas\"}"
+              }
+            ],
+            "diagnostics": [],
+            "clarification": null,
+            "finalText": "This completes the initial setup for the web MVP: a directory, the main application file (`app.py`), and the dependency file (`requirements.txt`). The next step would be to install dependencies and run the app, which I can do using the terminal. Do you want me to proceed with installing dependencies and running the Streamlit app now? (Note: Running the app will start a server process.)",
+            "error": null,
+            "repairCount": 2,
+            "toolCallCount": 5,
+            "latencyMs": 7736,
+            "eventCount": 96,
+            "tokenCount": 64,
+            "eventSequence": [
+              "state:running",
+              "tool:list_directory",
+              "tool_result:list_directory",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:write_file",
+              "state:awaiting_approval",
+              "approval",
+              "approval_decision",
+              "tool_result:write_file",
+              "state:running",
+              "tool:write_file",
+              "state:awaiting_approval",
+              "approval",
+              "approval_decision",
+              "tool_result:write_file",
+              "state:running",
+              "state:completed"
+            ],
+            "prompt": "Make it a simple web MVP with restaurant search and favorites.",
+            "turnIndex": 2,
+            "messages": {
+              "count": 4,
+              "tailRoles": [
+                "user",
+                "assistant",
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Help me create a food application."
+                },
+                {
+                  "role": "assistant",
+                  "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+                },
+                {
+                  "role": "user",
+                  "content": "Make it a simple web MVP with restaurant search and favorites."
+                },
+                {
+                  "role": "assistant",
+                  "content": "This completes the initial setup for the web MVP: a directory, the main application file (`app.py`), and the dependency file (`requirements.txt`). The next step would be to install dependencies and run the app, which I can do using the term"
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": null
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State completed matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Turn sequence satisfied."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification contract."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "pass",
+            "message": "No blocking policy issue."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "pass",
+        "score": 16.0,
+        "maxScore": 16,
+        "suspectedFailureClass": null
+      }
+    },
+    {
+      "scenarioId": "clarification_resume_needs_second_question_multiturn",
+      "variantGroup": "message_order_runtime",
+      "category": "multi_turn",
+      "description": "If the follow-up answer stays too broad, the runtime should be allowed to ask one more clarification cleanly.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "backend_relay",
+      "repeatIndex": 1,
+      "prompt": null,
+      "sessionId": "51f1cf40-95a4-4c1b-ac89-47b09a16c653",
+      "runId": "29ce266c-c890-4675-8c2b-50f40cef3e45",
+      "summary": {
+        "state": "awaiting_clarification",
+        "tools": [
+          "request_clarification",
+          "request_clarification"
+        ],
+        "toolArguments": [
+          {
+            "name": "request_clarification",
+            "arguments": "{\"question\": \"What kind of app do you want exactly: mobile app, web app, or something else?\"}"
+          },
+          {
+            "name": "request_clarification",
+            "arguments": "{\"question\": \"Which mobile platform do you want exactly: iPhone, Android, or cross-platform?\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "clarification_needed",
+            "level": "info",
+            "message": "Clarification requested: broad_product_prompt"
+          },
+          {
+            "code": "clarification_needed",
+            "level": "info",
+            "message": "Clarification requested: mobile_platform_unspecified"
+          }
+        ],
+        "clarification": {
+          "type": "clarification_required",
+          "runId": "29ce266c-c890-4675-8c2b-50f40cef3e45",
+          "clarificationId": "5eb95df9-6109-42b5-8274-66634c17b998",
+          "question": "What kind of app do you want exactly: mobile app, web app, or something else?",
+          "questions": [
+            "What kind of app do you want exactly: mobile app, web app, or something else?"
+          ],
+          "options": [
+            {
+              "label": "Web app"
+            },
+            {
+              "label": "Mobile app"
+            },
+            {
+              "label": "Something else"
+            }
+          ],
+          "allowFreeText": true,
+          "timestamp": "2026-03-17T10:58:04.907230+00:00"
+        },
+        "finalText": "",
+        "error": null,
+        "repairCount": 0,
+        "toolCallCount": 2,
+        "latencyMs": 43,
+        "eventCount": 18,
+        "tokenCount": 0,
+        "eventSequence": [
+          "state:running",
+          "tool:request_clarification",
+          "state:awaiting_clarification",
+          "clarification",
+          "tool:request_clarification",
+          "state:awaiting_clarification",
+          "clarification"
+        ],
+        "messages": {
+          "count": 4,
+          "tailRoles": [
+            "user",
+            "assistant",
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Help me create a food application."
+            },
+            {
+              "role": "assistant",
+              "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+            },
+            {
+              "role": "user",
+              "content": "A mobile app."
+            },
+            {
+              "role": "assistant",
+              "content": "I need clarification before continuing.\n1. Which mobile platform do you want exactly: iPhone, Android, or cross-platform?\nQuick options:\n- iPhone\n- Android\n- Cross-platform"
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "awaiting_clarification",
+            "tools": [
+              "request_clarification"
+            ],
+            "toolArguments": [
+              {
+                "name": "request_clarification",
+                "arguments": "{\"question\": \"What kind of app do you want exactly: mobile app, web app, or something else?\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "clarification_needed",
+                "level": "info",
+                "message": "Clarification requested: broad_product_prompt"
+              }
+            ],
+            "clarification": {
+              "type": "clarification_required",
+              "runId": "29ce266c-c890-4675-8c2b-50f40cef3e45",
+              "clarificationId": "5eb95df9-6109-42b5-8274-66634c17b998",
+              "question": "What kind of app do you want exactly: mobile app, web app, or something else?",
+              "questions": [
+                "What kind of app do you want exactly: mobile app, web app, or something else?"
+              ],
+              "options": [
+                {
+                  "label": "Web app"
+                },
+                {
+                  "label": "Mobile app"
+                },
+                {
+                  "label": "Something else"
+                }
+              ],
+              "allowFreeText": true,
+              "timestamp": "2026-03-17T10:58:04.907230+00:00"
+            },
+            "finalText": "",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 1,
+            "latencyMs": 0,
+            "eventCount": 12,
+            "tokenCount": 0,
+            "eventSequence": [
+              "state:running",
+              "tool:request_clarification",
+              "state:awaiting_clarification",
+              "clarification"
+            ],
+            "prompt": "Help me create a food application.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Help me create a food application."
+                },
+                {
+                  "role": "assistant",
+                  "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+                }
+              ]
+            }
+          },
+          {
+            "state": "awaiting_clarification",
+            "tools": [
+              "request_clarification"
+            ],
+            "toolArguments": [
+              {
+                "name": "request_clarification",
+                "arguments": "{\"question\": \"Which mobile platform do you want exactly: iPhone, Android, or cross-platform?\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "clarification_needed",
+                "level": "info",
+                "message": "Clarification requested: mobile_platform_unspecified"
+              }
+            ],
+            "clarification": {
+              "type": "clarification_required",
+              "runId": "29ce266c-c890-4675-8c2b-50f40cef3e45",
+              "clarificationId": "472515d6-d314-4301-8692-f7d98fb126a2",
+              "question": "Which mobile platform do you want exactly: iPhone, Android, or cross-platform?",
+              "questions": [
+                "Which mobile platform do you want exactly: iPhone, Android, or cross-platform?"
+              ],
+              "options": [
+                {
+                  "label": "iPhone"
+                },
+                {
+                  "label": "Android"
+                },
+                {
+                  "label": "Cross-platform"
+                }
+              ],
+              "allowFreeText": true,
+              "timestamp": "2026-03-17T10:58:04.949782+00:00"
+            },
+            "finalText": "",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 1,
+            "latencyMs": 4,
+            "eventCount": 6,
+            "tokenCount": 0,
+            "eventSequence": [
+              "tool:request_clarification",
+              "state:awaiting_clarification",
+              "clarification"
+            ],
+            "prompt": "A mobile app.",
+            "turnIndex": 2,
+            "messages": {
+              "count": 4,
+              "tailRoles": [
+                "user",
+                "assistant",
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Help me create a food application."
+                },
+                {
+                  "role": "assistant",
+                  "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+                },
+                {
+                  "role": "user",
+                  "content": "A mobile app."
+                },
+                {
+                  "role": "assistant",
+                  "content": "I need clarification before continuing.\n1. Which mobile platform do you want exactly: iPhone, Android, or cross-platform?\nQuick options:\n- iPhone\n- Android\n- Cross-platform"
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": null
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State awaiting_clarification matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Turn sequence satisfied."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification contract."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "pass",
+            "message": "No blocking policy issue."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "pass",
+        "score": 16.0,
+        "maxScore": 16,
+        "suspectedFailureClass": null
+      }
+    },
+    {
+      "scenarioId": "clarification_resume_food_app_web_multiturn",
+      "variantGroup": "message_order_runtime",
+      "category": "multi_turn",
+      "description": "A broad app request should also resume cleanly when the user narrows the scope to a simple web MVP.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "direct_runtime",
+      "repeatIndex": 1,
+      "prompt": null,
+      "sessionId": "matrix-86b585f1fc244d1a875f5cadceac1183",
+      "runId": "af65c586-5921-4cc0-9fe9-f5ec34ce5cac",
+      "summary": {
+        "state": "completed",
+        "tools": [
+          "request_clarification",
+          "list_directory",
+          "run_terminal",
+          "run_terminal",
+          "run_terminal",
+          "run_terminal",
+          "run_terminal",
+          "run_terminal",
+          "run_terminal",
+          "write_file"
+        ],
+        "toolArguments": [
+          {
+            "name": "request_clarification",
+            "arguments": "{\"question\": \"What kind of app do you want exactly: mobile app, web app, or something else?\"}"
+          },
+          {
+            "name": "list_directory",
+            "arguments": "{}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"mkdir FoodSearchMVP_Web_New_Simple && cd FoodSearchMVP_Web_New_Simple\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"mkdir FoodSearchMVP_Web_New_Simple\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"cd FoodSearchMVP_Web_New_Simple\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"mkdir backend frontend\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"python3 -m venv .venv && source .venv/bin/activate && pip install Flask\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"python3 -m venv .venv\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"./.venv/bin/pip install Flask\"}"
+          },
+          {
+            "name": "write_file",
+            "arguments": "{\"content\": \"from flask import Flask, jsonify, request, send_from_directory\\nimport json\\nimport os\\n\\napp = Flask(__name__, static_folder='../frontend')\\n\\n# --- Mock Data ---\\nRESTAURANTS = [\\n    {\\\"id\\\": 1, \\\"name\\\": \\\"The Italian Place\\\", \\\"cuisine\\\": \\\"Italian\\\", \\\"rating\\\": 4.5, \\\"address\\\": \\\"123 Pasta Ln\\\"},\\n    {\\\"id\\\": 2, \\\"name\\\": \\\"Sushi Heaven\\\", \\\"cuisine\\\": \\\"Japanese\\\", \\\"rating\\\": 4.8, \\\"address\\\": \\\"456 Fish St\\\"},\\n    {\\\"id\\\": 3, \\\"name\\\": \\\"Burger Joint\\\", \\\"cuisine\\\": \\\"American\\\", \\\"rating\\\": 4.2, \\\"address\\\": \\\"789 Patty Ave\\\"},\\n    {\\\"id\\\": 4, \\\"name\\\": \\\"Spicy Tacos\\\", \\\"cuisine\\\": \\\"Mexican\\\", \\\"rating\\\": 4.6, \\\"address\\\": \\\"101 Chili Rd\\\"},\\n]\\n\\n# Simple in-memory store for favorites (ID -> True)\\nFAVORITES = {}\\n\\n# --- API Endpoints ---\\n\\n@app.route('/api/restaurants', methods=['GET'])\\ndef list_restaurants():\\n    \\\"\\\"\\\"Search restaurants based on query parameters.\\\"\\\"\\\"\\n    query = request.args.get('q', '').lower()\\n    cuisine = request.args.get('cuisine', '').lower()\\n    \\n    results = RESTAURANTS\\n    \\n    if query:\\n        results = [r for r in results if query in r['name'].lower() or query in r['address'].lower()]\\n    \\n    if cuisine:\\n        results = [r for r in results if cuisine in r['cuisine'].lower()]\\n        \\n    # Add favorite status to each restaurant\\n    for restaurant in results:\\n        restaurant['is_favorite'] = restaurant['id'] in FAVORITES\\n        \\n    return jsonify(results)\\n\\n@app.route('/api/favorite/<int:restaurant_id>', methods=['POST'])\\ndef toggle_favorite(restaurant_id):\\n    \\\"\\\"\\\"Toggle a restaurant as a favorite.\\\"\\\"\\\"\\n    if not any(r['id'] == restaurant_id for r in RESTAURANTS):\\n        return jsonify({\\\"error\\\": \\\"Restaurant not found\\\"}), 404\\n    \\n    if restaurant_id in FAVORITES:\\n        del FAVORITES[restaurant_id]\\n        is_favorite = False\\n    else:\\n        FAVORITES[restaurant_id] = True\\n        is_favorite = True\\n        \\n    return jsonify({\\\"id\\\": restaurant_id, \\\"is_favorite\\\": is_favorite})\\n\\n@app.route('/api/favorites', methods=['GET'])\\ndef get_favorites():\\n    \\\"\\\"\\\"Get the list of favorited restaurants.\\\"\\\"\\\"\\n    favorite_restaurants = [r for r in RESTAURANTS if r['id'] in FAVORITES]\\n    return jsonify(favorite_restaurants)\\n\\n# --- Serve Frontend ---\\n@app.route('/', defaults={'path': ''})\\n@app.route('/<path:path>')\\ndef serve(path):\\n    \\\"\\\"\\\"Serve the frontend files.\\\"\\\"\\\"\\n    if path != \\\"\\\" and os.path.exists(os.path.join(app.static_folder, path)):\\n        return send_from_directory(app.static_folder, path)\\n    else:\\n        # Serve index.html for all other routes to allow client-side routing\\n        return send_from_directory(app.static_folder, 'index.html')\\n\\nif __name__ == '__main__':\\n    # Run on all interfaces for potential external access during development\\n    app.run(debug=True, host='0.0.0.0', port=5000)\", \"path\": \"FoodSearchMVP_Web_New_Simple/backend/app.py\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "clarification_needed",
+            "level": "info",
+            "message": "Clarification requested: broad_product_prompt"
+          },
+          {
+            "code": "runtime_heartbeat",
+            "level": "info",
+            "message": "Run still in progress while continuing after clarification (10s elapsed)."
+          },
+          {
+            "code": "terminal_command_blocked",
+            "level": "warn",
+            "message": "Blocked by terminal policy: Shell chaining/substitution operators detected; require approval under cautious policies."
+          },
+          {
+            "code": "terminal_nonzero_exit",
+            "level": "warn",
+            "message": "Terminal command exited with code 1."
+          },
+          {
+            "code": "terminal_nonzero_exit",
+            "level": "warn",
+            "message": "Terminal command exited with code 1."
+          },
+          {
+            "code": "terminal_command_blocked",
+            "level": "warn",
+            "message": "Blocked by terminal policy: Shell chaining/substitution operators detected; require approval under cautious policies."
+          }
+        ],
+        "clarification": {
+          "type": "clarification_required",
+          "runId": "af65c586-5921-4cc0-9fe9-f5ec34ce5cac",
+          "clarificationId": "a7a8f5d9-7807-4906-9149-15a5e698b638",
+          "question": "What kind of app do you want exactly: mobile app, web app, or something else?",
+          "questions": [
+            "What kind of app do you want exactly: mobile app, web app, or something else?"
+          ],
+          "options": [
+            {
+              "label": "Web app"
+            },
+            {
+              "label": "Mobile app"
+            },
+            {
+              "label": "Something else"
+            }
+          ],
+          "allowFreeText": true,
+          "timestamp": "2026-03-17T10:58:04.970459+00:00"
+        },
+        "finalText": "Next, I will create the frontend file: `frontend/index.html`. This will contain the basic HTML structure, CSS for styling, and JavaScript to interact with the backend API for search and favoriting. **`frontend/index.html` content:** ```html <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"UTF-8\"> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"> <title>Food Search MVP</title> <style> body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; } .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); } h1, h2 { color: #333; } #search-controls { margin-bottom: 20px; display: flex; gap: 10px; } #search-input, #cuisine-select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; flex-grow: 1; } button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; background-color: #007bff; color: white; } button:hover { background-color: #0056b3; } #restaurant-list, #favorites-list { list-style: none; padding: 0; } .restaurant-item { border: 1px solid #eee; padding: 15px; margin-bottom: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; background-color: #fff; } .restaurant-info { flex-grow: 1; } .favorite-btn { background: none; border: none; color: #ccc; font-size: 20px; cursor: pointer; padding: 0 10px; } .favorite-btn.is-favorite { color: #ffc107; } .tab-controls button { background-color: #e9ecef; color: #333; margin-right: 5px; } .tab-controls button.active { background-color: #007bff; color: white; } </style> </head> <body> <div class=\"container\"> <h1>Food Search MVP</h1> <div class=\"tab-controls\"> <button id=\"tab-search\" class=\"active\" onclick=\"showTab('search')\">Search</button> <button id=\"tab-favorites\" onclick=\"showTab('favorites')\">Favorites</button> </div> <div id=\"search-view\"> <h2>Search Restaurants</h2> <div id=\"search-controls\"> <input type=\"text\" id=\"search-input\" placeholder=\"Search by name or address...\"> <select id=\"cuisine-select\"> <option value=\"\">All Cuisines</option> <option value=\"Italian\">Italian</option> <option value=\"Japanese\">Japanese</option> <option value=\"American\">American</option> <option value=\"Mexican\">Mexican</option> </select> <button onclick=\"searchRestaurants()\">Search</button> </div> <ul id=\"restaurant-list\"></ul> </div> <div id=\"favorites-view\" style=\"display: none;\"> <h2>My Favorites</h2> <ul id=\"favorites-list\"></ul> </div> </div> <script> const API_BASE = '/api'; const restaurantListEl = document.getElementById('restaurant-list'); const favoritesListEl = document.getElementById('favorites-list'); const searchInputEl = document.getElementById('search-input'); const cuisineSelectEl = document.getElementById('cuisine-select'); // --- Tab Management --- function showTab(tabName) { document.getElementById('search-view').style.display = 'none'; document.getElementById('favorites-view').style.display = 'none'; document.getElementById(tabName + '-view').style.display = 'block'; document.querySelectorAll('.tab-controls button').forEach(btn => btn.classList.remove('active')); document.getElementById('tab-' + tabName).classList.add('active'); if (tabName === 'favorites') { loadFavorites(); } else { searchRestaurants(); // Refresh search view on tab switch } } // --- API Interaction --- async function fetchData(endpoint) { try { const response = await fetch(`${API_BASE}/${endpoint}`); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); return await response.json(); } catch (error) { console.error(\"Error fetching data:\", error); return []; } } async function postData(endpoint, data = {}) { try { const response = await fetch(`${API_BASE}/${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); return await response.json(); } catch (error) { console.error(\"Error posting data:\", error); return null; } } // --- Search Logic --- async function searchRestaurants() { const query = searchInputEl.value; const cuisine = cuisineSelectEl.value; const restaurants = await fetchData(`restaurants?q=${encodeURIComponent(query)}&cuisine=${encodeURIComponent(cuisine)}`); restaurantListEl.innerHTML = ''; if (restaurants.length === 0) { restaurantListEl.innerHTML = '<li>No restaurants found.</li>'; return; } restaurants.forEach(restaurant => { const li = document.createElement('li'); li.className = 'restaurant-item'; li.innerHTML = ` <div class=\"restaurant-info\"> <strong>${restaurant.name}</strong> (${restaurant.cuisine}) - ${restaurant.address} <br><small>Rating: ${restaurant.rating}</small> </div> <button class=\"favorite-btn ${restaurant.is_favorite ? 'is-favorite' : ''}\" data-id=\"${restaurant.id}\" onclick=\"toggleFavorite(${restaurant.id}, this)\"> ${restaurant.is_favorite ? '★' : '☆'} </button> `; li.dataset.id = restaurant.id; restaurantListEl.appendChild(li); }); } // --- Favorites Logic --- async function toggleFavorite(id, buttonEl) { const result = await postData(`favorite/${id}`); if (result) { buttonEl.classList.toggle('is-favorite', result.is_favorite); buttonEl.innerHTML = result.is_favorite ? '★' : '☆'; // If we are on the favorites tab, reload the list if (document.getElementById('favorites-view').style.display !== 'none') { loadFavorites(); } } } async function loadFavorites() { const favorites = await fetchData('favorites'); favoritesListEl.innerHTML = ''; if (favorites.length === 0) { favoritesListEl.innerHTML = '<li>You have no favorite restaurants yet.</li>'; return; } favorites.forEach(restaurant => { const li = document.createElement('li'); li.className = 'restaurant-item'; li.innerHTML = ` <div class=\"restaurant-info\"> <strong>${restaurant.name}</strong> (${restaurant.cuisine}) - ${restaurant.address} <br><small>Rating: ${restaurant.rating}</small> </div> <button class=\"favorite-btn is-favorite\" data-id=\"${restaurant.id}\" onclick=\"toggleFavorite(${restaurant.id}, this)\"> ★ </button> `; favoritesListEl.appendChild(li); }); } // --- Initialization --- document.addEventListener('DOMContentLoaded', () => { searchRestaurants(); }); </script> </body> </html> <ctrl46>,path:<ctrl46>FoodSearchMVP_Web_",
+        "error": null,
+        "repairCount": 1,
+        "toolCallCount": 10,
+        "latencyMs": 14186,
+        "eventCount": 678,
+        "tokenCount": 618,
+        "eventSequence": [
+          "state:running",
+          "tool:request_clarification",
+          "state:awaiting_clarification",
+          "clarification",
+          "state:running",
+          "tool:list_directory",
+          "tool_result:list_directory",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:write_file",
+          "state:awaiting_approval",
+          "approval",
+          "approval_decision",
+          "tool_result:write_file",
+          "state:running",
+          "state:completed"
+        ],
+        "messages": {
+          "count": 4,
+          "tailRoles": [
+            "user",
+            "assistant",
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Help me create a food application."
+            },
+            {
+              "role": "assistant",
+              "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+            },
+            {
+              "role": "user",
+              "content": "Make it a simple web MVP with restaurant search and favorites."
+            },
+            {
+              "role": "assistant",
+              "content": "Next, I will create the frontend file: `frontend/index.html`. This will contain the basic HTML structure, CSS for styling, and JavaScript to interact with the backend API for search and favoriting. **`frontend/index.html` content:** ```html"
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "awaiting_clarification",
+            "tools": [
+              "request_clarification"
+            ],
+            "toolArguments": [
+              {
+                "name": "request_clarification",
+                "arguments": "{\"question\": \"What kind of app do you want exactly: mobile app, web app, or something else?\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "clarification_needed",
+                "level": "info",
+                "message": "Clarification requested: broad_product_prompt"
+              }
+            ],
+            "clarification": {
+              "type": "clarification_required",
+              "runId": "af65c586-5921-4cc0-9fe9-f5ec34ce5cac",
+              "clarificationId": "a7a8f5d9-7807-4906-9149-15a5e698b638",
+              "question": "What kind of app do you want exactly: mobile app, web app, or something else?",
+              "questions": [
+                "What kind of app do you want exactly: mobile app, web app, or something else?"
+              ],
+              "options": [
+                {
+                  "label": "Web app"
+                },
+                {
+                  "label": "Mobile app"
+                },
+                {
+                  "label": "Something else"
+                }
+              ],
+              "allowFreeText": true,
+              "timestamp": "2026-03-17T10:58:04.970459+00:00"
+            },
+            "finalText": "",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 1,
+            "latencyMs": 0,
+            "eventCount": 12,
+            "tokenCount": 0,
+            "eventSequence": [
+              "state:running",
+              "tool:request_clarification",
+              "state:awaiting_clarification",
+              "clarification"
+            ],
+            "prompt": "Help me create a food application.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Help me create a food application."
+                },
+                {
+                  "role": "assistant",
+                  "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+                }
+              ]
+            }
+          },
+          {
+            "state": "completed",
+            "tools": [
+              "list_directory",
+              "run_terminal",
+              "run_terminal",
+              "run_terminal",
+              "run_terminal",
+              "run_terminal",
+              "run_terminal",
+              "run_terminal",
+              "write_file"
+            ],
+            "toolArguments": [
+              {
+                "name": "list_directory",
+                "arguments": "{}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"mkdir FoodSearchMVP_Web_New_Simple && cd FoodSearchMVP_Web_New_Simple\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"mkdir FoodSearchMVP_Web_New_Simple\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"cd FoodSearchMVP_Web_New_Simple\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"mkdir backend frontend\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"python3 -m venv .venv && source .venv/bin/activate && pip install Flask\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"python3 -m venv .venv\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"./.venv/bin/pip install Flask\"}"
+              },
+              {
+                "name": "write_file",
+                "arguments": "{\"content\": \"from flask import Flask, jsonify, request, send_from_directory\\nimport json\\nimport os\\n\\napp = Flask(__name__, static_folder='../frontend')\\n\\n# --- Mock Data ---\\nRESTAURANTS = [\\n    {\\\"id\\\": 1, \\\"name\\\": \\\"The Italian Place\\\", \\\"cuisine\\\": \\\"Italian\\\", \\\"rating\\\": 4.5, \\\"address\\\": \\\"123 Pasta Ln\\\"},\\n    {\\\"id\\\": 2, \\\"name\\\": \\\"Sushi Heaven\\\", \\\"cuisine\\\": \\\"Japanese\\\", \\\"rating\\\": 4.8, \\\"address\\\": \\\"456 Fish St\\\"},\\n    {\\\"id\\\": 3, \\\"name\\\": \\\"Burger Joint\\\", \\\"cuisine\\\": \\\"American\\\", \\\"rating\\\": 4.2, \\\"address\\\": \\\"789 Patty Ave\\\"},\\n    {\\\"id\\\": 4, \\\"name\\\": \\\"Spicy Tacos\\\", \\\"cuisine\\\": \\\"Mexican\\\", \\\"rating\\\": 4.6, \\\"address\\\": \\\"101 Chili Rd\\\"},\\n]\\n\\n# Simple in-memory store for favorites (ID -> True)\\nFAVORITES = {}\\n\\n# --- API Endpoints ---\\n\\n@app.route('/api/restaurants', methods=['GET'])\\ndef list_restaurants():\\n    \\\"\\\"\\\"Search restaurants based on query parameters.\\\"\\\"\\\"\\n    query = request.args.get('q', '').lower()\\n    cuisine = request.args.get('cuisine', '').lower()\\n    \\n    results = RESTAURANTS\\n    \\n    if query:\\n        results = [r for r in results if query in r['name'].lower() or query in r['address'].lower()]\\n    \\n    if cuisine:\\n        results = [r for r in results if cuisine in r['cuisine'].lower()]\\n        \\n    # Add favorite status to each restaurant\\n    for restaurant in results:\\n        restaurant['is_favorite'] = restaurant['id'] in FAVORITES\\n        \\n    return jsonify(results)\\n\\n@app.route('/api/favorite/<int:restaurant_id>', methods=['POST'])\\ndef toggle_favorite(restaurant_id):\\n    \\\"\\\"\\\"Toggle a restaurant as a favorite.\\\"\\\"\\\"\\n    if not any(r['id'] == restaurant_id for r in RESTAURANTS):\\n        return jsonify({\\\"error\\\": \\\"Restaurant not found\\\"}), 404\\n    \\n    if restaurant_id in FAVORITES:\\n        del FAVORITES[restaurant_id]\\n        is_favorite = False\\n    else:\\n        FAVORITES[restaurant_id] = True\\n        is_favorite = True\\n        \\n    return jsonify({\\\"id\\\": restaurant_id, \\\"is_favorite\\\": is_favorite})\\n\\n@app.route('/api/favorites', methods=['GET'])\\ndef get_favorites():\\n    \\\"\\\"\\\"Get the list of favorited restaurants.\\\"\\\"\\\"\\n    favorite_restaurants = [r for r in RESTAURANTS if r['id'] in FAVORITES]\\n    return jsonify(favorite_restaurants)\\n\\n# --- Serve Frontend ---\\n@app.route('/', defaults={'path': ''})\\n@app.route('/<path:path>')\\ndef serve(path):\\n    \\\"\\\"\\\"Serve the frontend files.\\\"\\\"\\\"\\n    if path != \\\"\\\" and os.path.exists(os.path.join(app.static_folder, path)):\\n        return send_from_directory(app.static_folder, path)\\n    else:\\n        # Serve index.html for all other routes to allow client-side routing\\n        return send_from_directory(app.static_folder, 'index.html')\\n\\nif __name__ == '__main__':\\n    # Run on all interfaces for potential external access during development\\n    app.run(debug=True, host='0.0.0.0', port=5000)\", \"path\": \"FoodSearchMVP_Web_New_Simple/backend/app.py\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "runtime_heartbeat",
+                "level": "info",
+                "message": "Run still in progress while continuing after clarification (10s elapsed)."
+              },
+              {
+                "code": "terminal_command_blocked",
+                "level": "warn",
+                "message": "Blocked by terminal policy: Shell chaining/substitution operators detected; require approval under cautious policies."
+              },
+              {
+                "code": "terminal_nonzero_exit",
+                "level": "warn",
+                "message": "Terminal command exited with code 1."
+              },
+              {
+                "code": "terminal_nonzero_exit",
+                "level": "warn",
+                "message": "Terminal command exited with code 1."
+              },
+              {
+                "code": "terminal_command_blocked",
+                "level": "warn",
+                "message": "Blocked by terminal policy: Shell chaining/substitution operators detected; require approval under cautious policies."
+              }
+            ],
+            "clarification": null,
+            "finalText": "Next, I will create the frontend file: `frontend/index.html`. This will contain the basic HTML structure, CSS for styling, and JavaScript to interact with the backend API for search and favoriting. **`frontend/index.html` content:** ```html <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"UTF-8\"> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"> <title>Food Search MVP</title> <style> body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; } .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); } h1, h2 { color: #333; } #search-controls { margin-bottom: 20px; display: flex; gap: 10px; } #search-input, #cuisine-select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; flex-grow: 1; } button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; background-color: #007bff; color: white; } button:hover { background-color: #0056b3; } #restaurant-list, #favorites-list { list-style: none; padding: 0; } .restaurant-item { border: 1px solid #eee; padding: 15px; margin-bottom: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; background-color: #fff; } .restaurant-info { flex-grow: 1; } .favorite-btn { background: none; border: none; color: #ccc; font-size: 20px; cursor: pointer; padding: 0 10px; } .favorite-btn.is-favorite { color: #ffc107; } .tab-controls button { background-color: #e9ecef; color: #333; margin-right: 5px; } .tab-controls button.active { background-color: #007bff; color: white; } </style> </head> <body> <div class=\"container\"> <h1>Food Search MVP</h1> <div class=\"tab-controls\"> <button id=\"tab-search\" class=\"active\" onclick=\"showTab('search')\">Search</button> <button id=\"tab-favorites\" onclick=\"showTab('favorites')\">Favorites</button> </div> <div id=\"search-view\"> <h2>Search Restaurants</h2> <div id=\"search-controls\"> <input type=\"text\" id=\"search-input\" placeholder=\"Search by name or address...\"> <select id=\"cuisine-select\"> <option value=\"\">All Cuisines</option> <option value=\"Italian\">Italian</option> <option value=\"Japanese\">Japanese</option> <option value=\"American\">American</option> <option value=\"Mexican\">Mexican</option> </select> <button onclick=\"searchRestaurants()\">Search</button> </div> <ul id=\"restaurant-list\"></ul> </div> <div id=\"favorites-view\" style=\"display: none;\"> <h2>My Favorites</h2> <ul id=\"favorites-list\"></ul> </div> </div> <script> const API_BASE = '/api'; const restaurantListEl = document.getElementById('restaurant-list'); const favoritesListEl = document.getElementById('favorites-list'); const searchInputEl = document.getElementById('search-input'); const cuisineSelectEl = document.getElementById('cuisine-select'); // --- Tab Management --- function showTab(tabName) { document.getElementById('search-view').style.display = 'none'; document.getElementById('favorites-view').style.display = 'none'; document.getElementById(tabName + '-view').style.display = 'block'; document.querySelectorAll('.tab-controls button').forEach(btn => btn.classList.remove('active')); document.getElementById('tab-' + tabName).classList.add('active'); if (tabName === 'favorites') { loadFavorites(); } else { searchRestaurants(); // Refresh search view on tab switch } } // --- API Interaction --- async function fetchData(endpoint) { try { const response = await fetch(`${API_BASE}/${endpoint}`); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); return await response.json(); } catch (error) { console.error(\"Error fetching data:\", error); return []; } } async function postData(endpoint, data = {}) { try { const response = await fetch(`${API_BASE}/${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); return await response.json(); } catch (error) { console.error(\"Error posting data:\", error); return null; } } // --- Search Logic --- async function searchRestaurants() { const query = searchInputEl.value; const cuisine = cuisineSelectEl.value; const restaurants = await fetchData(`restaurants?q=${encodeURIComponent(query)}&cuisine=${encodeURIComponent(cuisine)}`); restaurantListEl.innerHTML = ''; if (restaurants.length === 0) { restaurantListEl.innerHTML = '<li>No restaurants found.</li>'; return; } restaurants.forEach(restaurant => { const li = document.createElement('li'); li.className = 'restaurant-item'; li.innerHTML = ` <div class=\"restaurant-info\"> <strong>${restaurant.name}</strong> (${restaurant.cuisine}) - ${restaurant.address} <br><small>Rating: ${restaurant.rating}</small> </div> <button class=\"favorite-btn ${restaurant.is_favorite ? 'is-favorite' : ''}\" data-id=\"${restaurant.id}\" onclick=\"toggleFavorite(${restaurant.id}, this)\"> ${restaurant.is_favorite ? '★' : '☆'} </button> `; li.dataset.id = restaurant.id; restaurantListEl.appendChild(li); }); } // --- Favorites Logic --- async function toggleFavorite(id, buttonEl) { const result = await postData(`favorite/${id}`); if (result) { buttonEl.classList.toggle('is-favorite', result.is_favorite); buttonEl.innerHTML = result.is_favorite ? '★' : '☆'; // If we are on the favorites tab, reload the list if (document.getElementById('favorites-view').style.display !== 'none') { loadFavorites(); } } } async function loadFavorites() { const favorites = await fetchData('favorites'); favoritesListEl.innerHTML = ''; if (favorites.length === 0) { favoritesListEl.innerHTML = '<li>You have no favorite restaurants yet.</li>'; return; } favorites.forEach(restaurant => { const li = document.createElement('li'); li.className = 'restaurant-item'; li.innerHTML = ` <div class=\"restaurant-info\"> <strong>${restaurant.name}</strong> (${restaurant.cuisine}) - ${restaurant.address} <br><small>Rating: ${restaurant.rating}</small> </div> <button class=\"favorite-btn is-favorite\" data-id=\"${restaurant.id}\" onclick=\"toggleFavorite(${restaurant.id}, this)\"> ★ </button> `; favoritesListEl.appendChild(li); }); } // --- Initialization --- document.addEventListener('DOMContentLoaded', () => { searchRestaurants(); }); </script> </body> </html> <ctrl46>,path:<ctrl46>FoodSearchMVP_Web_",
+            "error": null,
+            "repairCount": 1,
+            "toolCallCount": 9,
+            "latencyMs": 14174,
+            "eventCount": 666,
+            "tokenCount": 618,
+            "eventSequence": [
+              "state:running",
+              "tool:list_directory",
+              "tool_result:list_directory",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:write_file",
+              "state:awaiting_approval",
+              "approval",
+              "approval_decision",
+              "tool_result:write_file",
+              "state:running",
+              "state:completed"
+            ],
+            "prompt": "Make it a simple web MVP with restaurant search and favorites.",
+            "turnIndex": 2,
+            "messages": {
+              "count": 4,
+              "tailRoles": [
+                "user",
+                "assistant",
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Help me create a food application."
+                },
+                {
+                  "role": "assistant",
+                  "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+                },
+                {
+                  "role": "user",
+                  "content": "Make it a simple web MVP with restaurant search and favorites."
+                },
+                {
+                  "role": "assistant",
+                  "content": "Next, I will create the frontend file: `frontend/index.html`. This will contain the basic HTML structure, CSS for styling, and JavaScript to interact with the backend API for search and favoriting. **`frontend/index.html` content:** ```html"
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": "final_answer_discipline"
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State completed matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Turn sequence satisfied."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification contract."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "soft_fail",
+            "message": "A terminal policy block happened during a non-policy scenario."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "soft_fail",
+        "score": 15.5,
+        "maxScore": 16,
+        "suspectedFailureClass": "final_answer_discipline"
+      }
+    },
+    {
+      "scenarioId": "clarification_resume_needs_second_question_multiturn",
+      "variantGroup": "message_order_runtime",
+      "category": "multi_turn",
+      "description": "If the follow-up answer stays too broad, the runtime should be allowed to ask one more clarification cleanly.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "direct_runtime",
+      "repeatIndex": 1,
+      "prompt": null,
+      "sessionId": "matrix-9d61a92d51a142c597800b1fca13d0f8",
+      "runId": "1c80cc01-e553-4349-9a7b-293857ee42da",
+      "summary": {
+        "state": "awaiting_clarification",
+        "tools": [
+          "request_clarification",
+          "request_clarification"
+        ],
+        "toolArguments": [
+          {
+            "name": "request_clarification",
+            "arguments": "{\"question\": \"What kind of app do you want exactly: mobile app, web app, or something else?\"}"
+          },
+          {
+            "name": "request_clarification",
+            "arguments": "{\"question\": \"Which mobile platform do you want exactly: iPhone, Android, or cross-platform?\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "clarification_needed",
+            "level": "info",
+            "message": "Clarification requested: broad_product_prompt"
+          },
+          {
+            "code": "clarification_needed",
+            "level": "info",
+            "message": "Clarification requested: mobile_platform_unspecified"
+          }
+        ],
+        "clarification": {
+          "type": "clarification_required",
+          "runId": "1c80cc01-e553-4349-9a7b-293857ee42da",
+          "clarificationId": "755fd9f3-9551-41ab-b2ae-06e88af02446",
+          "question": "What kind of app do you want exactly: mobile app, web app, or something else?",
+          "questions": [
+            "What kind of app do you want exactly: mobile app, web app, or something else?"
+          ],
+          "options": [
+            {
+              "label": "Web app"
+            },
+            {
+              "label": "Mobile app"
+            },
+            {
+              "label": "Something else"
+            }
+          ],
+          "allowFreeText": true,
+          "timestamp": "2026-03-17T10:58:19.929488+00:00"
+        },
+        "finalText": "",
+        "error": null,
+        "repairCount": 0,
+        "toolCallCount": 2,
+        "latencyMs": 13,
+        "eventCount": 17,
+        "tokenCount": 0,
+        "eventSequence": [
+          "state:running",
+          "tool:request_clarification",
+          "state:awaiting_clarification",
+          "clarification",
+          "tool:request_clarification",
+          "state:awaiting_clarification",
+          "clarification"
+        ],
+        "messages": {
+          "count": 4,
+          "tailRoles": [
+            "user",
+            "assistant",
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Help me create a food application."
+            },
+            {
+              "role": "assistant",
+              "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+            },
+            {
+              "role": "user",
+              "content": "A mobile app."
+            },
+            {
+              "role": "assistant",
+              "content": "I need clarification before continuing.\n1. Which mobile platform do you want exactly: iPhone, Android, or cross-platform?\nQuick options:\n- iPhone\n- Android\n- Cross-platform"
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "awaiting_clarification",
+            "tools": [
+              "request_clarification"
+            ],
+            "toolArguments": [
+              {
+                "name": "request_clarification",
+                "arguments": "{\"question\": \"What kind of app do you want exactly: mobile app, web app, or something else?\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "clarification_needed",
+                "level": "info",
+                "message": "Clarification requested: broad_product_prompt"
+              }
+            ],
+            "clarification": {
+              "type": "clarification_required",
+              "runId": "1c80cc01-e553-4349-9a7b-293857ee42da",
+              "clarificationId": "755fd9f3-9551-41ab-b2ae-06e88af02446",
+              "question": "What kind of app do you want exactly: mobile app, web app, or something else?",
+              "questions": [
+                "What kind of app do you want exactly: mobile app, web app, or something else?"
+              ],
+              "options": [
+                {
+                  "label": "Web app"
+                },
+                {
+                  "label": "Mobile app"
+                },
+                {
+                  "label": "Something else"
+                }
+              ],
+              "allowFreeText": true,
+              "timestamp": "2026-03-17T10:58:19.929488+00:00"
+            },
+            "finalText": "",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 1,
+            "latencyMs": 0,
+            "eventCount": 12,
+            "tokenCount": 0,
+            "eventSequence": [
+              "state:running",
+              "tool:request_clarification",
+              "state:awaiting_clarification",
+              "clarification"
+            ],
+            "prompt": "Help me create a food application.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Help me create a food application."
+                },
+                {
+                  "role": "assistant",
+                  "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+                }
+              ]
+            }
+          },
+          {
+            "state": "awaiting_clarification",
+            "tools": [
+              "request_clarification"
+            ],
+            "toolArguments": [
+              {
+                "name": "request_clarification",
+                "arguments": "{\"question\": \"Which mobile platform do you want exactly: iPhone, Android, or cross-platform?\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "clarification_needed",
+                "level": "info",
+                "message": "Clarification requested: mobile_platform_unspecified"
+              }
+            ],
+            "clarification": {
+              "type": "clarification_required",
+              "runId": "1c80cc01-e553-4349-9a7b-293857ee42da",
+              "clarificationId": "ab247ef5-d399-4f67-9454-93e8ec09f735",
+              "question": "Which mobile platform do you want exactly: iPhone, Android, or cross-platform?",
+              "questions": [
+                "Which mobile platform do you want exactly: iPhone, Android, or cross-platform?"
+              ],
+              "options": [
+                {
+                  "label": "iPhone"
+                },
+                {
+                  "label": "Android"
+                },
+                {
+                  "label": "Cross-platform"
+                }
+              ],
+              "allowFreeText": true,
+              "timestamp": "2026-03-17T10:58:19.942489+00:00"
+            },
+            "finalText": "",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 1,
+            "latencyMs": 0,
+            "eventCount": 5,
+            "tokenCount": 0,
+            "eventSequence": [
+              "tool:request_clarification",
+              "state:awaiting_clarification",
+              "clarification"
+            ],
+            "prompt": "A mobile app.",
+            "turnIndex": 2,
+            "messages": {
+              "count": 4,
+              "tailRoles": [
+                "user",
+                "assistant",
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Help me create a food application."
+                },
+                {
+                  "role": "assistant",
+                  "content": "I need clarification before continuing.\n1. What kind of app do you want exactly: mobile app, web app, or something else?\nQuick options:\n- Web app\n- Mobile app\n- Something else"
+                },
+                {
+                  "role": "user",
+                  "content": "A mobile app."
+                },
+                {
+                  "role": "assistant",
+                  "content": "I need clarification before continuing.\n1. Which mobile platform do you want exactly: iPhone, Android, or cross-platform?\nQuick options:\n- iPhone\n- Android\n- Cross-platform"
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": null
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State awaiting_clarification matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Turn sequence satisfied."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification contract."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "pass",
+            "message": "No blocking policy issue."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "pass",
+        "score": 16.0,
+        "maxScore": 16,
+        "suspectedFailureClass": null
+      }
+    }
+  ],
+  "updatedAt": "2026-03-17T10:58:19.943021+00:00",
+  "artifact_path": "/Users/victor/Documents/continue-better/streamlit-python-only/.tmp_matrix_live_focus/matrix/matrix-1773745099943.json"
+}

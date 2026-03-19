@@ -1,0 +1,4824 @@
+{
+  "report_id": "matrix-1773745424579",
+  "generatedAt": "2026-03-17T11:03:44.579576+00:00",
+  "models": [
+    "google/gemini-2.5-flash-lite-preview-09-2025"
+  ],
+  "repeat": 1,
+  "profiles": [
+    "baseline_current"
+  ],
+  "surfaces": [
+    "backend_relay",
+    "direct_runtime"
+  ],
+  "envMatrix": [
+    {
+      "profile": "baseline_current",
+      "surface": "backend_relay",
+      "profileEnv": {},
+      "surfaceEnv": {},
+      "effective": {}
+    },
+    {
+      "profile": "baseline_current",
+      "surface": "direct_runtime",
+      "profileEnv": {},
+      "surfaceEnv": {},
+      "effective": {}
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "terminal_sequential_inspect",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "terminal",
+      "description": "The model should use sequential terminal inspection without chaining.",
+      "prompt": "Use the terminal to print the current directory and list the workspace root, then summarize in one line.",
+      "allowWrites": false,
+      "toolToggles": {
+        "clarification": true,
+        "appActions": false,
+        "webSearch": false,
+        "rag": false
+      },
+      "expectedState": [
+        "completed"
+      ],
+      "clarification": "must_not_happen",
+      "expectedToolsMode": "must_include",
+      "expectedTools": [
+        "run_terminal"
+      ],
+      "messageOrder": {
+        "tailRoles": [
+          "user",
+          "assistant"
+        ]
+      },
+      "final": {
+        "minNonWhitespaceChars": 25,
+        "includesOneOf": [
+          "/streamlit python only/i",
+          "/ai technical assistant/i",
+          "/continue better/i"
+        ]
+      }
+    },
+    {
+      "id": "terminal_multiturn_inspect_then_summarize",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "multi_turn",
+      "description": "Sequential terminal inspection should remain grounded across a short follow-up turn.",
+      "allowWrites": false,
+      "toolToggles": {
+        "clarification": true,
+        "appActions": false,
+        "webSearch": false,
+        "rag": false
+      },
+      "expectedState": [
+        "completed"
+      ],
+      "expectedToolsMode": "must_include",
+      "expectedTools": [
+        "run_terminal"
+      ],
+      "turns": [
+        {
+          "prompt": "Use the terminal to print the current directory and list the workspace root.",
+          "expectedState": [
+            "completed"
+          ],
+          "clarification": "must_not_happen",
+          "expectedToolsMode": "must_include",
+          "expectedTools": [
+            "run_terminal"
+          ],
+          "messageOrder": {
+            "tailRoles": [
+              "user",
+              "assistant"
+            ]
+          },
+          "final": {
+            "minNonWhitespaceChars": 20
+          }
+        },
+        {
+          "prompt": "And now summarize it in one line.",
+          "expectedState": [
+            "completed"
+          ],
+          "clarification": "must_not_happen",
+          "messageOrder": {
+            "tailRoles": [
+              "user",
+              "assistant"
+            ]
+          },
+          "final": {
+            "minNonWhitespaceChars": 20,
+            "includesOneOf": [
+              "/streamlit python only/i",
+              "/ai technical assistant/i",
+              "/continue better/i"
+            ]
+          }
+        }
+      ],
+      "messageOrder": {
+        "tailRoles": [
+          "user",
+          "assistant"
+        ]
+      },
+      "final": {
+        "minNonWhitespaceChars": 20,
+        "includesOneOf": [
+          "/streamlit python only/i",
+          "/ai technical assistant/i",
+          "/continue better/i"
+        ]
+      }
+    },
+    {
+      "id": "terminal_multiturn_inspect_then_compact_summary",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "multi_turn",
+      "description": "A more compact terminal follow-up should still stay grounded in the inspected workspace.",
+      "allowWrites": false,
+      "toolToggles": {
+        "clarification": true,
+        "appActions": false,
+        "webSearch": false,
+        "rag": false
+      },
+      "expectedState": [
+        "completed"
+      ],
+      "expectedToolsMode": "must_include",
+      "expectedTools": [
+        "run_terminal"
+      ],
+      "turns": [
+        {
+          "prompt": "Use the terminal to print the current directory and list the workspace root.",
+          "expectedState": [
+            "completed"
+          ],
+          "clarification": "must_not_happen",
+          "expectedToolsMode": "must_include",
+          "expectedTools": [
+            "run_terminal"
+          ],
+          "messageOrder": {
+            "tailRoles": [
+              "user",
+              "assistant"
+            ]
+          },
+          "final": {
+            "minNonWhitespaceChars": 20
+          }
+        },
+        {
+          "prompt": "Now give me a very short summary of that workspace.",
+          "expectedState": [
+            "completed"
+          ],
+          "clarification": "must_not_happen",
+          "messageOrder": {
+            "tailRoles": [
+              "user",
+              "assistant"
+            ]
+          },
+          "final": {
+            "minNonWhitespaceChars": 16,
+            "includesOneOf": [
+              "/streamlit python only/i",
+              "/ai technical assistant/i",
+              "/continue better/i"
+            ]
+          }
+        }
+      ],
+      "messageOrder": {
+        "tailRoles": [
+          "user",
+          "assistant"
+        ]
+      },
+      "final": {
+        "minNonWhitespaceChars": 16,
+        "includesOneOf": [
+          "/streamlit python only/i",
+          "/ai technical assistant/i",
+          "/continue better/i"
+        ]
+      }
+    },
+    {
+      "id": "terminal_multiturn_inspect_then_key_entries",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "multi_turn",
+      "description": "A terminal follow-up asking what stands out should preserve concrete workspace evidence from the inspected root.",
+      "allowWrites": false,
+      "toolToggles": {
+        "clarification": true,
+        "appActions": false,
+        "webSearch": false,
+        "rag": false
+      },
+      "expectedState": [
+        "completed"
+      ],
+      "expectedToolsMode": "must_include",
+      "expectedTools": [
+        "run_terminal"
+      ],
+      "turns": [
+        {
+          "prompt": "Use the terminal to print the current directory and list the workspace root.",
+          "expectedState": [
+            "completed"
+          ],
+          "clarification": "must_not_happen",
+          "expectedToolsMode": "must_include",
+          "expectedTools": [
+            "run_terminal"
+          ],
+          "messageOrder": {
+            "tailRoles": [
+              "user",
+              "assistant"
+            ]
+          },
+          "final": {
+            "minNonWhitespaceChars": 20
+          }
+        },
+        {
+          "prompt": "What stands out from that workspace? Keep it brief.",
+          "expectedState": [
+            "completed"
+          ],
+          "clarification": "must_not_happen",
+          "messageOrder": {
+            "tailRoles": [
+              "user",
+              "assistant"
+            ]
+          },
+          "final": {
+            "minNonWhitespaceChars": 20,
+            "includesOneOf": [
+              "/readme/i",
+              "/backend/i",
+              "/artifacts/i",
+              "/streamlit/i",
+              "/continue better/i"
+            ]
+          }
+        }
+      ],
+      "messageOrder": {
+        "tailRoles": [
+          "user",
+          "assistant"
+        ]
+      },
+      "final": {
+        "minNonWhitespaceChars": 20,
+        "includesOneOf": [
+          "/readme/i",
+          "/backend/i",
+          "/artifacts/i",
+          "/streamlit/i",
+          "/continue better/i"
+        ]
+      }
+    }
+  ],
+  "aggregate": {
+    "byModel": {
+      "google/gemini-2.5-flash-lite-preview-09-2025": {
+        "runs": 8,
+        "pass": 8,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 128.0,
+        "maxScore": 128.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 8,
+          "pass": 8,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      }
+    },
+    "byScenario": {
+      "terminal_sequential_inspect": {
+        "runs": 2,
+        "pass": 2,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 32.0,
+        "maxScore": 32.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 2,
+          "pass": 2,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      },
+      "terminal_multiturn_inspect_then_summarize": {
+        "runs": 2,
+        "pass": 2,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 32.0,
+        "maxScore": 32.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 2,
+          "pass": 2,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      },
+      "terminal_multiturn_inspect_then_compact_summary": {
+        "runs": 2,
+        "pass": 2,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 32.0,
+        "maxScore": 32.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 2,
+          "pass": 2,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      },
+      "terminal_multiturn_inspect_then_key_entries": {
+        "runs": 2,
+        "pass": 2,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 32.0,
+        "maxScore": 32.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 2,
+          "pass": 2,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 2,
+            "pass": 2,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 2.0,
+            "maxScore": 2.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      }
+    },
+    "byProfile": {
+      "baseline_current": {
+        "runs": 8,
+        "pass": 8,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 128.0,
+        "maxScore": 128.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 8,
+          "pass": 8,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 8,
+            "pass": 8,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 8.0,
+            "maxScore": 8.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      }
+    },
+    "bySurface": {
+      "backend_relay": {
+        "runs": 4,
+        "pass": 4,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 64.0,
+        "maxScore": 64.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 4,
+          "pass": 4,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      },
+      "direct_runtime": {
+        "runs": 4,
+        "pass": 4,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 64.0,
+        "maxScore": 64.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 4,
+          "pass": 4,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      }
+    },
+    "byModelProfileSurface": {
+      "google/gemini-2.5-flash-lite-preview-09-2025::baseline_current::backend_relay": {
+        "runs": 4,
+        "pass": 4,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 64.0,
+        "maxScore": 64.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 4,
+          "pass": 4,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      },
+      "google/gemini-2.5-flash-lite-preview-09-2025::baseline_current::direct_runtime": {
+        "runs": 4,
+        "pass": 4,
+        "soft_fail": 0,
+        "hard_fail": 0,
+        "score": 64.0,
+        "maxScore": 64.0,
+        "avgScore": 1.0,
+        "passRate": 1.0,
+        "passKLite": {
+          "groups": 4,
+          "pass": 4,
+          "rate": 1.0,
+          "repeatWindow": 1
+        },
+        "dimensions": {
+          "infra": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "state": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "turns": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "toolSelection": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "flow": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarification": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "clarificationQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "messageOrder": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "sourceQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "exactOutput": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "ragQuality": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "policy": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "truth": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "finalContract": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "diagnostics": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          },
+          "artifacts": {
+            "runs": 4,
+            "pass": 4,
+            "soft_fail": 0,
+            "hard_fail": 0,
+            "score": 4.0,
+            "maxScore": 4.0,
+            "avgScore": 1.0,
+            "passRate": 1.0
+          }
+        }
+      }
+    },
+    "failureClusters": [],
+    "trendSignals": [
+      {
+        "variantGroup": "terminal_sequential_followup",
+        "runs": 8,
+        "scenarioIds": [
+          "terminal_multiturn_inspect_then_compact_summary",
+          "terminal_multiturn_inspect_then_key_entries",
+          "terminal_multiturn_inspect_then_summarize",
+          "terminal_sequential_inspect"
+        ],
+        "surfaces": [
+          "backend_relay",
+          "direct_runtime"
+        ],
+        "models": [
+          "google/gemini-2.5-flash-lite-preview-09-2025"
+        ],
+        "profiles": [
+          "baseline_current"
+        ],
+        "passRate": 1.0,
+        "hardFailRate": 0.0,
+        "nonPassRate": 0.0,
+        "distinctScenarioCount": 4,
+        "dominantFailureClass": null,
+        "failureClassDistribution": [],
+        "sameFailureAcrossMajority": false,
+        "signalStrength": "healthy",
+        "likelyCause": null
+      }
+    ]
+  },
+  "results": [
+    {
+      "scenarioId": "terminal_sequential_inspect",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "terminal",
+      "description": "The model should use sequential terminal inspection without chaining.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "backend_relay",
+      "repeatIndex": 1,
+      "prompt": "Use the terminal to print the current directory and list the workspace root, then summarize in one line.",
+      "sessionId": "5bb758b1-d22d-402e-b7d7-bddcf0731e49",
+      "runId": "11f3ae5d-847c-49f6-a17f-e3a8ea050b98",
+      "summary": {
+        "state": "completed",
+        "tools": [
+          "run_terminal",
+          "run_terminal"
+        ],
+        "toolArguments": [
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"pwd\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"ls -F\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English, grounded_summary."
+          },
+          {
+            "code": "final_contract_repair_requested",
+            "level": "warn",
+            "message": "Final answer is not clearly grounded in the tool result."
+          }
+        ],
+        "clarification": null,
+        "finalText": "The current directory is /Users/victor/Documents/continue-better/streamlit-python-only in the streamlit python only workspace, and the workspace root contains ContentView.swift, FoodAppMVP/, FoodAppMVP_SwiftUI/, FoodAppMVP_SwiftUIApp.swift.",
+        "error": null,
+        "repairCount": 0,
+        "toolCallCount": 2,
+        "latencyMs": 2846,
+        "eventCount": 40,
+        "tokenCount": 20,
+        "eventSequence": [
+          "state:running",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "state:completed"
+        ],
+        "messages": {
+          "count": 2,
+          "tailRoles": [
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Use the terminal to print the current directory and list the workspace root, then summarize in one line."
+            },
+            {
+              "role": "assistant",
+              "content": "The current directory is /Users/victor/Documents/continue-better/streamlit-python-only in the streamlit python only workspace, and the workspace root contains ContentView.swift, FoodAppMVP/, FoodAppMVP_SwiftUI/, FoodAppMVP_SwiftUIApp.swift."
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "completed",
+            "tools": [
+              "run_terminal",
+              "run_terminal"
+            ],
+            "toolArguments": [
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"pwd\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"ls -F\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English, grounded_summary."
+              },
+              {
+                "code": "final_contract_repair_requested",
+                "level": "warn",
+                "message": "Final answer is not clearly grounded in the tool result."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The current directory is /Users/victor/Documents/continue-better/streamlit-python-only in the streamlit python only workspace, and the workspace root contains ContentView.swift, FoodAppMVP/, FoodAppMVP_SwiftUI/, FoodAppMVP_SwiftUIApp.swift.",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 2,
+            "latencyMs": 2846,
+            "eventCount": 40,
+            "tokenCount": 20,
+            "eventSequence": [
+              "state:running",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "state:completed"
+            ],
+            "prompt": "Use the terminal to print the current directory and list the workspace root, then summarize in one line.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root, then summarize in one line."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is /Users/victor/Documents/continue-better/streamlit-python-only in the streamlit python only workspace, and the workspace root contains ContentView.swift, FoodAppMVP/, FoodAppMVP_SwiftUI/, FoodAppMVP_SwiftUIApp.swift."
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": null
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State completed matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Single-turn scenario."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification needed."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "pass",
+            "message": "No blocking policy issue."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "pass",
+        "score": 16.0,
+        "maxScore": 16,
+        "suspectedFailureClass": null
+      }
+    },
+    {
+      "scenarioId": "terminal_multiturn_inspect_then_summarize",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "multi_turn",
+      "description": "Sequential terminal inspection should remain grounded across a short follow-up turn.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "backend_relay",
+      "repeatIndex": 1,
+      "prompt": null,
+      "sessionId": "36f9a7e4-dc73-44f9-b65c-b1c90b14421d",
+      "runId": "b906290e-53b4-45c4-ae8c-9ffe007c44ac",
+      "summary": {
+        "state": "completed",
+        "tools": [
+          "run_terminal",
+          "run_terminal"
+        ],
+        "toolArguments": [
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"pwd\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"ls -F\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English."
+          },
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English, grounded_summary."
+          },
+          {
+            "code": "final_contract_repair_requested",
+            "level": "warn",
+            "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+          }
+        ],
+        "clarification": null,
+        "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/ The streamlit python only workspace contains several directories and files related to a \"FoodAppMVP\" and \"FoodSearchMVP\" project, including web, iOS, and backend components, along with configuration, documentation, and testing files.",
+        "error": null,
+        "repairCount": 0,
+        "toolCallCount": 2,
+        "latencyMs": 3735,
+        "eventCount": 113,
+        "tokenCount": 82,
+        "eventSequence": [
+          "state:running",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "state:completed",
+          "state:running",
+          "state:completed"
+        ],
+        "messages": {
+          "count": 4,
+          "tailRoles": [
+            "user",
+            "assistant",
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Use the terminal to print the current directory and list the workspace root."
+            },
+            {
+              "role": "assistant",
+              "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+            },
+            {
+              "role": "user",
+              "content": "And now summarize it in one line."
+            },
+            {
+              "role": "assistant",
+              "content": "The streamlit python only workspace contains several directories and files related to a \"FoodAppMVP\" and \"FoodSearchMVP\" project, including web, iOS, and backend components, along with configuration, documentation, and testing files."
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "completed",
+            "tools": [
+              "run_terminal",
+              "run_terminal"
+            ],
+            "toolArguments": [
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"pwd\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"ls -F\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 2,
+            "latencyMs": 2127,
+            "eventCount": 71,
+            "tokenCount": 52,
+            "eventSequence": [
+              "state:running",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "state:completed"
+            ],
+            "prompt": "Use the terminal to print the current directory and list the workspace root.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                }
+              ]
+            }
+          },
+          {
+            "state": "completed",
+            "tools": [],
+            "toolArguments": [],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English, grounded_summary."
+              },
+              {
+                "code": "final_contract_repair_requested",
+                "level": "warn",
+                "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The streamlit python only workspace contains several directories and files related to a \"FoodAppMVP\" and \"FoodSearchMVP\" project, including web, iOS, and backend components, along with configuration, documentation, and testing files.",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 0,
+            "latencyMs": 1312,
+            "eventCount": 42,
+            "tokenCount": 30,
+            "eventSequence": [
+              "state:running",
+              "state:completed"
+            ],
+            "prompt": "And now summarize it in one line.",
+            "turnIndex": 2,
+            "messages": {
+              "count": 4,
+              "tailRoles": [
+                "user",
+                "assistant",
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                },
+                {
+                  "role": "user",
+                  "content": "And now summarize it in one line."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The streamlit python only workspace contains several directories and files related to a \"FoodAppMVP\" and \"FoodSearchMVP\" project, including web, iOS, and backend components, along with configuration, documentation, and testing files."
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": null
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State completed matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Turn sequence satisfied."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification contract."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "pass",
+            "message": "No blocking policy issue."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "pass",
+        "score": 16.0,
+        "maxScore": 16,
+        "suspectedFailureClass": null
+      }
+    },
+    {
+      "scenarioId": "terminal_multiturn_inspect_then_compact_summary",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "multi_turn",
+      "description": "A more compact terminal follow-up should still stay grounded in the inspected workspace.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "backend_relay",
+      "repeatIndex": 1,
+      "prompt": null,
+      "sessionId": "9e2236d7-db52-4ea6-bd60-947c26d2ec52",
+      "runId": "9a9a85e4-edb2-4341-80ac-914189fccede",
+      "summary": {
+        "state": "completed",
+        "tools": [
+          "run_terminal",
+          "run_terminal"
+        ],
+        "toolArguments": [
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"pwd\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"ls -F\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English."
+          },
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English, grounded_summary."
+          },
+          {
+            "code": "final_contract_repair_requested",
+            "level": "warn",
+            "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+          }
+        ],
+        "clarification": null,
+        "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/ The streamlit python only workspace appears to be a project with multiple iterations or versions of an application, likely named \"FoodAppMVP\" and \"FoodSearchMVP,\" with components for backend, frontend, iOS (SwiftUI), and web development, along with configuration, documentation, and testing files.",
+        "error": null,
+        "repairCount": 0,
+        "toolCallCount": 2,
+        "latencyMs": 4111,
+        "eventCount": 123,
+        "tokenCount": 92,
+        "eventSequence": [
+          "state:running",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "state:completed",
+          "state:running",
+          "state:completed"
+        ],
+        "messages": {
+          "count": 4,
+          "tailRoles": [
+            "user",
+            "assistant",
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Use the terminal to print the current directory and list the workspace root."
+            },
+            {
+              "role": "assistant",
+              "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+            },
+            {
+              "role": "user",
+              "content": "Now give me a very short summary of that workspace."
+            },
+            {
+              "role": "assistant",
+              "content": "The streamlit python only workspace appears to be a project with multiple iterations or versions of an application, likely named \"FoodAppMVP\" and \"FoodSearchMVP,\" with components for backend, frontend, iOS (SwiftUI), and web development, al"
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "completed",
+            "tools": [
+              "run_terminal",
+              "run_terminal"
+            ],
+            "toolArguments": [
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"pwd\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"ls -F\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 2,
+            "latencyMs": 2574,
+            "eventCount": 71,
+            "tokenCount": 52,
+            "eventSequence": [
+              "state:running",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "state:completed"
+            ],
+            "prompt": "Use the terminal to print the current directory and list the workspace root.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                }
+              ]
+            }
+          },
+          {
+            "state": "completed",
+            "tools": [],
+            "toolArguments": [],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English, grounded_summary."
+              },
+              {
+                "code": "final_contract_repair_requested",
+                "level": "warn",
+                "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The streamlit python only workspace appears to be a project with multiple iterations or versions of an application, likely named \"FoodAppMVP\" and \"FoodSearchMVP,\" with components for backend, frontend, iOS (SwiftUI), and web development, along with configuration, documentation, and testing files.",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 0,
+            "latencyMs": 1278,
+            "eventCount": 52,
+            "tokenCount": 40,
+            "eventSequence": [
+              "state:running",
+              "state:completed"
+            ],
+            "prompt": "Now give me a very short summary of that workspace.",
+            "turnIndex": 2,
+            "messages": {
+              "count": 4,
+              "tailRoles": [
+                "user",
+                "assistant",
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                },
+                {
+                  "role": "user",
+                  "content": "Now give me a very short summary of that workspace."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The streamlit python only workspace appears to be a project with multiple iterations or versions of an application, likely named \"FoodAppMVP\" and \"FoodSearchMVP,\" with components for backend, frontend, iOS (SwiftUI), and web development, al"
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": null
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State completed matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Turn sequence satisfied."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification contract."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "pass",
+            "message": "No blocking policy issue."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "pass",
+        "score": 16.0,
+        "maxScore": 16,
+        "suspectedFailureClass": null
+      }
+    },
+    {
+      "scenarioId": "terminal_multiturn_inspect_then_key_entries",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "multi_turn",
+      "description": "A terminal follow-up asking what stands out should preserve concrete workspace evidence from the inspected root.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "backend_relay",
+      "repeatIndex": 1,
+      "prompt": null,
+      "sessionId": "3e2e84ec-3c25-4803-9bed-c469062f1f50",
+      "runId": "5982c3b0-817d-4acd-9959-d30302b3eada",
+      "summary": {
+        "state": "completed",
+        "tools": [
+          "run_terminal",
+          "run_terminal"
+        ],
+        "toolArguments": [
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"pwd\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"ls -F\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English."
+          },
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English, grounded_summary."
+          },
+          {
+            "code": "final_contract_repair_requested",
+            "level": "warn",
+            "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+          }
+        ],
+        "clarification": null,
+        "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/ The streamlit python only workspace appears to be a project with multiple versions or iterations of an application, possibly named \"FoodAppMVP\" and \"FoodSearchMVP,\" with versions for different platforms like Web, iOS, and SwiftUI. There are also configuration files, scripts, and logs present.",
+        "error": null,
+        "repairCount": 0,
+        "toolCallCount": 2,
+        "latencyMs": 3727,
+        "eventCount": 125,
+        "tokenCount": 94,
+        "eventSequence": [
+          "state:running",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "state:completed",
+          "state:running",
+          "state:completed"
+        ],
+        "messages": {
+          "count": 4,
+          "tailRoles": [
+            "user",
+            "assistant",
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Use the terminal to print the current directory and list the workspace root."
+            },
+            {
+              "role": "assistant",
+              "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+            },
+            {
+              "role": "user",
+              "content": "What stands out from that workspace? Keep it brief."
+            },
+            {
+              "role": "assistant",
+              "content": "The streamlit python only workspace appears to be a project with multiple versions or iterations of an application, possibly named \"FoodAppMVP\" and \"FoodSearchMVP,\" with versions for different platforms like Web, iOS, and SwiftUI. There are"
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "completed",
+            "tools": [
+              "run_terminal",
+              "run_terminal"
+            ],
+            "toolArguments": [
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"pwd\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"ls -F\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 2,
+            "latencyMs": 2195,
+            "eventCount": 71,
+            "tokenCount": 52,
+            "eventSequence": [
+              "state:running",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "state:completed"
+            ],
+            "prompt": "Use the terminal to print the current directory and list the workspace root.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                }
+              ]
+            }
+          },
+          {
+            "state": "completed",
+            "tools": [],
+            "toolArguments": [],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English, grounded_summary."
+              },
+              {
+                "code": "final_contract_repair_requested",
+                "level": "warn",
+                "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The streamlit python only workspace appears to be a project with multiple versions or iterations of an application, possibly named \"FoodAppMVP\" and \"FoodSearchMVP,\" with versions for different platforms like Web, iOS, and SwiftUI. There are also configuration files, scripts, and logs present.",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 0,
+            "latencyMs": 1260,
+            "eventCount": 54,
+            "tokenCount": 42,
+            "eventSequence": [
+              "state:running",
+              "state:completed"
+            ],
+            "prompt": "What stands out from that workspace? Keep it brief.",
+            "turnIndex": 2,
+            "messages": {
+              "count": 4,
+              "tailRoles": [
+                "user",
+                "assistant",
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                },
+                {
+                  "role": "user",
+                  "content": "What stands out from that workspace? Keep it brief."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The streamlit python only workspace appears to be a project with multiple versions or iterations of an application, possibly named \"FoodAppMVP\" and \"FoodSearchMVP,\" with versions for different platforms like Web, iOS, and SwiftUI. There are"
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": null
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State completed matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Turn sequence satisfied."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification contract."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "pass",
+            "message": "No blocking policy issue."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "pass",
+        "score": 16.0,
+        "maxScore": 16,
+        "suspectedFailureClass": null
+      }
+    },
+    {
+      "scenarioId": "terminal_sequential_inspect",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "terminal",
+      "description": "The model should use sequential terminal inspection without chaining.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "direct_runtime",
+      "repeatIndex": 1,
+      "prompt": "Use the terminal to print the current directory and list the workspace root, then summarize in one line.",
+      "sessionId": "matrix-2563f5760ff24e61b6d3c6e6166fec7a",
+      "runId": "cbd3599a-b880-4ece-9d7b-66bc6a835acf",
+      "summary": {
+        "state": "completed",
+        "tools": [
+          "run_terminal",
+          "run_terminal"
+        ],
+        "toolArguments": [
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"pwd\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"ls\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English, grounded_summary."
+          },
+          {
+            "code": "final_contract_repair_requested",
+            "level": "warn",
+            "message": "Final answer is not clearly grounded in the tool result."
+          }
+        ],
+        "clarification": null,
+        "finalText": "The current directory is /Users/victor/Documents/continue-better/streamlit-python-only in the streamlit python only workspace, and the workspace root contains ContentView.swift, FoodAppMVP, FoodAppMVP_SwiftUI, FoodAppMVP_SwiftUIApp.swift.",
+        "error": null,
+        "repairCount": 0,
+        "toolCallCount": 2,
+        "latencyMs": 2904,
+        "eventCount": 40,
+        "tokenCount": 20,
+        "eventSequence": [
+          "state:running",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "state:completed"
+        ],
+        "messages": {
+          "count": 2,
+          "tailRoles": [
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Use the terminal to print the current directory and list the workspace root, then summarize in one line."
+            },
+            {
+              "role": "assistant",
+              "content": "The current directory is /Users/victor/Documents/continue-better/streamlit-python-only in the streamlit python only workspace, and the workspace root contains ContentView.swift, FoodAppMVP, FoodAppMVP_SwiftUI, FoodAppMVP_SwiftUIApp.swift."
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "completed",
+            "tools": [
+              "run_terminal",
+              "run_terminal"
+            ],
+            "toolArguments": [
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"pwd\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"ls\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English, grounded_summary."
+              },
+              {
+                "code": "final_contract_repair_requested",
+                "level": "warn",
+                "message": "Final answer is not clearly grounded in the tool result."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The current directory is /Users/victor/Documents/continue-better/streamlit-python-only in the streamlit python only workspace, and the workspace root contains ContentView.swift, FoodAppMVP, FoodAppMVP_SwiftUI, FoodAppMVP_SwiftUIApp.swift.",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 2,
+            "latencyMs": 2904,
+            "eventCount": 40,
+            "tokenCount": 20,
+            "eventSequence": [
+              "state:running",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "state:completed"
+            ],
+            "prompt": "Use the terminal to print the current directory and list the workspace root, then summarize in one line.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root, then summarize in one line."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is /Users/victor/Documents/continue-better/streamlit-python-only in the streamlit python only workspace, and the workspace root contains ContentView.swift, FoodAppMVP, FoodAppMVP_SwiftUI, FoodAppMVP_SwiftUIApp.swift."
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": null
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State completed matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Single-turn scenario."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification needed."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "pass",
+            "message": "No blocking policy issue."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "pass",
+        "score": 16.0,
+        "maxScore": 16,
+        "suspectedFailureClass": null
+      }
+    },
+    {
+      "scenarioId": "terminal_multiturn_inspect_then_summarize",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "multi_turn",
+      "description": "Sequential terminal inspection should remain grounded across a short follow-up turn.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "direct_runtime",
+      "repeatIndex": 1,
+      "prompt": null,
+      "sessionId": "matrix-e071f295dd3a4ef3a96cf85ed5a677fa",
+      "runId": "40437ba7-4a3b-45e6-98ab-89b0c3af7547",
+      "summary": {
+        "state": "completed",
+        "tools": [
+          "run_terminal",
+          "run_terminal"
+        ],
+        "toolArguments": [
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"pwd\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"ls -F\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English."
+          },
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English, grounded_summary."
+          },
+          {
+            "code": "final_contract_repair_requested",
+            "level": "warn",
+            "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+          }
+        ],
+        "clarification": null,
+        "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/ The streamlit python only workspace contains several directories and files related to a \"FoodAppMVP\" and \"FoodSearchMVP\" project, including web, iOS, and backend components, along with configuration, documentation, and testing files.",
+        "error": null,
+        "repairCount": 0,
+        "toolCallCount": 2,
+        "latencyMs": 3039,
+        "eventCount": 113,
+        "tokenCount": 82,
+        "eventSequence": [
+          "state:running",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "state:completed",
+          "state:running",
+          "state:completed"
+        ],
+        "messages": {
+          "count": 4,
+          "tailRoles": [
+            "user",
+            "assistant",
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Use the terminal to print the current directory and list the workspace root."
+            },
+            {
+              "role": "assistant",
+              "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+            },
+            {
+              "role": "user",
+              "content": "And now summarize it in one line."
+            },
+            {
+              "role": "assistant",
+              "content": "The streamlit python only workspace contains several directories and files related to a \"FoodAppMVP\" and \"FoodSearchMVP\" project, including web, iOS, and backend components, along with configuration, documentation, and testing files."
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "completed",
+            "tools": [
+              "run_terminal",
+              "run_terminal"
+            ],
+            "toolArguments": [
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"pwd\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"ls -F\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 2,
+            "latencyMs": 2038,
+            "eventCount": 71,
+            "tokenCount": 52,
+            "eventSequence": [
+              "state:running",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "state:completed"
+            ],
+            "prompt": "Use the terminal to print the current directory and list the workspace root.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                }
+              ]
+            }
+          },
+          {
+            "state": "completed",
+            "tools": [],
+            "toolArguments": [],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English, grounded_summary."
+              },
+              {
+                "code": "final_contract_repair_requested",
+                "level": "warn",
+                "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The streamlit python only workspace contains several directories and files related to a \"FoodAppMVP\" and \"FoodSearchMVP\" project, including web, iOS, and backend components, along with configuration, documentation, and testing files.",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 0,
+            "latencyMs": 972,
+            "eventCount": 42,
+            "tokenCount": 30,
+            "eventSequence": [
+              "state:running",
+              "state:completed"
+            ],
+            "prompt": "And now summarize it in one line.",
+            "turnIndex": 2,
+            "messages": {
+              "count": 4,
+              "tailRoles": [
+                "user",
+                "assistant",
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                },
+                {
+                  "role": "user",
+                  "content": "And now summarize it in one line."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The streamlit python only workspace contains several directories and files related to a \"FoodAppMVP\" and \"FoodSearchMVP\" project, including web, iOS, and backend components, along with configuration, documentation, and testing files."
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": null
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State completed matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Turn sequence satisfied."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification contract."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "pass",
+            "message": "No blocking policy issue."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "pass",
+        "score": 16.0,
+        "maxScore": 16,
+        "suspectedFailureClass": null
+      }
+    },
+    {
+      "scenarioId": "terminal_multiturn_inspect_then_compact_summary",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "multi_turn",
+      "description": "A more compact terminal follow-up should still stay grounded in the inspected workspace.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "direct_runtime",
+      "repeatIndex": 1,
+      "prompt": null,
+      "sessionId": "matrix-35dd3d08576b4457a96cfd4dcc7f9f92",
+      "runId": "d0d41fba-06a7-4716-9cb5-28b557aecf63",
+      "summary": {
+        "state": "completed",
+        "tools": [
+          "run_terminal",
+          "run_terminal"
+        ],
+        "toolArguments": [
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"pwd\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"ls -F\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English."
+          },
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English, grounded_summary."
+          },
+          {
+            "code": "final_contract_repair_requested",
+            "level": "warn",
+            "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+          }
+        ],
+        "clarification": null,
+        "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/ The streamlit python only workspace appears to be a project with multiple iterations or versions of an application, likely named \"FoodAppMVP\" and \"FoodSearchMVP,\" with components for backend, frontend, iOS (SwiftUI), and web development, along with configuration, documentation, and testing files.",
+        "error": null,
+        "repairCount": 0,
+        "toolCallCount": 2,
+        "latencyMs": 3703,
+        "eventCount": 123,
+        "tokenCount": 92,
+        "eventSequence": [
+          "state:running",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "state:completed",
+          "state:running",
+          "state:completed"
+        ],
+        "messages": {
+          "count": 4,
+          "tailRoles": [
+            "user",
+            "assistant",
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Use the terminal to print the current directory and list the workspace root."
+            },
+            {
+              "role": "assistant",
+              "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+            },
+            {
+              "role": "user",
+              "content": "Now give me a very short summary of that workspace."
+            },
+            {
+              "role": "assistant",
+              "content": "The streamlit python only workspace appears to be a project with multiple iterations or versions of an application, likely named \"FoodAppMVP\" and \"FoodSearchMVP,\" with components for backend, frontend, iOS (SwiftUI), and web development, al"
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "completed",
+            "tools": [
+              "run_terminal",
+              "run_terminal"
+            ],
+            "toolArguments": [
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"pwd\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"ls -F\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 2,
+            "latencyMs": 2120,
+            "eventCount": 71,
+            "tokenCount": 52,
+            "eventSequence": [
+              "state:running",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "state:completed"
+            ],
+            "prompt": "Use the terminal to print the current directory and list the workspace root.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                }
+              ]
+            }
+          },
+          {
+            "state": "completed",
+            "tools": [],
+            "toolArguments": [],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English, grounded_summary."
+              },
+              {
+                "code": "final_contract_repair_requested",
+                "level": "warn",
+                "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The streamlit python only workspace appears to be a project with multiple iterations or versions of an application, likely named \"FoodAppMVP\" and \"FoodSearchMVP,\" with components for backend, frontend, iOS (SwiftUI), and web development, along with configuration, documentation, and testing files.",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 0,
+            "latencyMs": 1550,
+            "eventCount": 52,
+            "tokenCount": 40,
+            "eventSequence": [
+              "state:running",
+              "state:completed"
+            ],
+            "prompt": "Now give me a very short summary of that workspace.",
+            "turnIndex": 2,
+            "messages": {
+              "count": 4,
+              "tailRoles": [
+                "user",
+                "assistant",
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                },
+                {
+                  "role": "user",
+                  "content": "Now give me a very short summary of that workspace."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The streamlit python only workspace appears to be a project with multiple iterations or versions of an application, likely named \"FoodAppMVP\" and \"FoodSearchMVP,\" with components for backend, frontend, iOS (SwiftUI), and web development, al"
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": null
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State completed matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Turn sequence satisfied."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification contract."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "pass",
+            "message": "No blocking policy issue."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "pass",
+        "score": 16.0,
+        "maxScore": 16,
+        "suspectedFailureClass": null
+      }
+    },
+    {
+      "scenarioId": "terminal_multiturn_inspect_then_key_entries",
+      "variantGroup": "terminal_sequential_followup",
+      "category": "multi_turn",
+      "description": "A terminal follow-up asking what stands out should preserve concrete workspace evidence from the inspected root.",
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "profile": "baseline_current",
+      "surface": "direct_runtime",
+      "repeatIndex": 1,
+      "prompt": null,
+      "sessionId": "matrix-ce4ed45b88a548ce99b48ac345d6dc49",
+      "runId": "2a6562de-54e6-4ee2-a114-aa6c363d53b4",
+      "summary": {
+        "state": "completed",
+        "tools": [
+          "run_terminal",
+          "run_terminal"
+        ],
+        "toolArguments": [
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"pwd\"}"
+          },
+          {
+            "name": "run_terminal",
+            "arguments": "{\"command\": \"ls -F\"}"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English."
+          },
+          {
+            "code": "provider_mode",
+            "level": "info",
+            "message": "Provider mode: native."
+          },
+          {
+            "code": "provider_family",
+            "level": "info",
+            "message": "Provider family: openrouter."
+          },
+          {
+            "code": "provider_config_source",
+            "level": "info",
+            "message": "Provider config source: env."
+          },
+          {
+            "code": "tool_routing_mode",
+            "level": "info",
+            "message": "Tool selection is performed in the main model turn (single-pass)."
+          },
+          {
+            "code": "final_contract_detected",
+            "level": "info",
+            "message": "Final answer contract detected: language=English, grounded_summary."
+          },
+          {
+            "code": "final_contract_repair_requested",
+            "level": "warn",
+            "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+          }
+        ],
+        "clarification": null,
+        "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/ The streamlit python only workspace appears to be a project with multiple versions or iterations of an application, possibly named \"FoodAppMVP\" and \"FoodSearchMVP,\" with versions for different platforms like Web, iOS, and SwiftUI. There are also configuration files, scripts, and logs present.",
+        "error": null,
+        "repairCount": 0,
+        "toolCallCount": 2,
+        "latencyMs": 3559,
+        "eventCount": 125,
+        "tokenCount": 94,
+        "eventSequence": [
+          "state:running",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "tool:run_terminal",
+          "tool_result:run_terminal",
+          "state:completed",
+          "state:running",
+          "state:completed"
+        ],
+        "messages": {
+          "count": 4,
+          "tailRoles": [
+            "user",
+            "assistant",
+            "user",
+            "assistant"
+          ],
+          "tail": [
+            {
+              "role": "user",
+              "content": "Use the terminal to print the current directory and list the workspace root."
+            },
+            {
+              "role": "assistant",
+              "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+            },
+            {
+              "role": "user",
+              "content": "What stands out from that workspace? Keep it brief."
+            },
+            {
+              "role": "assistant",
+              "content": "The streamlit python only workspace appears to be a project with multiple versions or iterations of an application, possibly named \"FoodAppMVP\" and \"FoodSearchMVP,\" with versions for different platforms like Web, iOS, and SwiftUI. There are"
+            }
+          ]
+        },
+        "turns": [
+          {
+            "state": "completed",
+            "tools": [
+              "run_terminal",
+              "run_terminal"
+            ],
+            "toolArguments": [
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"pwd\"}"
+              },
+              {
+                "name": "run_terminal",
+                "arguments": "{\"command\": \"ls -F\"}"
+              }
+            ],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppMVP_SwiftUI_New_Final/ FoodAppMVP_Web/ FoodAppMVP_iOS/ FoodAppMVP_iOS_Final/ FoodAppMVP_iOS_Simple/ FoodAppMVP_iOS_SwiftUI/ FoodSearchMVP/ FoodSearchMVP_Web/ FoodSearchMVP_Web_MVP/ FoodSearchMVP_Web_New/ FoodSearchMVP_Web_New_Simple/ FoodSearchMVP_Web_Simple/ README.md artifacts/ backend/ backend.log backend.manual.log config/ docker-compose.yml docs/ frontend/ frontend.manual.log ios_mvp/ matrix_fixtures/ output/ pyproject.toml scripts/ server.py sidecar/ sidecar.log sidecar.manual.log src/ test_chat.py test_chat_bug.py tests/",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 2,
+            "latencyMs": 2373,
+            "eventCount": 71,
+            "tokenCount": 52,
+            "eventSequence": [
+              "state:running",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "tool:run_terminal",
+              "tool_result:run_terminal",
+              "state:completed"
+            ],
+            "prompt": "Use the terminal to print the current directory and list the workspace root.",
+            "turnIndex": 1,
+            "messages": {
+              "count": 2,
+              "tailRoles": [
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                }
+              ]
+            }
+          },
+          {
+            "state": "completed",
+            "tools": [],
+            "toolArguments": [],
+            "diagnostics": [
+              {
+                "code": "provider_mode",
+                "level": "info",
+                "message": "Provider mode: native."
+              },
+              {
+                "code": "provider_family",
+                "level": "info",
+                "message": "Provider family: openrouter."
+              },
+              {
+                "code": "provider_config_source",
+                "level": "info",
+                "message": "Provider config source: env."
+              },
+              {
+                "code": "tool_routing_mode",
+                "level": "info",
+                "message": "Tool selection is performed in the main model turn (single-pass)."
+              },
+              {
+                "code": "final_contract_detected",
+                "level": "info",
+                "message": "Final answer contract detected: language=English, grounded_summary."
+              },
+              {
+                "code": "final_contract_repair_requested",
+                "level": "warn",
+                "message": "Follow-up summary should stay grounded in the previous verified assistant context."
+              }
+            ],
+            "clarification": null,
+            "finalText": "The streamlit python only workspace appears to be a project with multiple versions or iterations of an application, possibly named \"FoodAppMVP\" and \"FoodSearchMVP,\" with versions for different platforms like Web, iOS, and SwiftUI. There are also configuration files, scripts, and logs present.",
+            "error": null,
+            "repairCount": 0,
+            "toolCallCount": 0,
+            "latencyMs": 1145,
+            "eventCount": 54,
+            "tokenCount": 42,
+            "eventSequence": [
+              "state:running",
+              "state:completed"
+            ],
+            "prompt": "What stands out from that workspace? Keep it brief.",
+            "turnIndex": 2,
+            "messages": {
+              "count": 4,
+              "tailRoles": [
+                "user",
+                "assistant",
+                "user",
+                "assistant"
+              ],
+              "tail": [
+                {
+                  "role": "user",
+                  "content": "Use the terminal to print the current directory and list the workspace root."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The current directory is `/Users/victor/Documents/continue-better/streamlit-python-only`. The contents of the workspace root are: ContentView.swift FoodAppMVP/ FoodAppMVP_SwiftUI/ FoodAppMVP_SwiftUIApp.swift FoodAppMVP_SwiftUI_New/ FoodAppM"
+                },
+                {
+                  "role": "user",
+                  "content": "What stands out from that workspace? Keep it brief."
+                },
+                {
+                  "role": "assistant",
+                  "content": "The streamlit python only workspace appears to be a project with multiple versions or iterations of an application, possibly named \"FoodAppMVP\" and \"FoodSearchMVP,\" with versions for different platforms like Web, iOS, and SwiftUI. There are"
+                }
+              ]
+            }
+          }
+        ],
+        "suspectedFailureClass": null
+      },
+      "grade": {
+        "dimensions": {
+          "infra": {
+            "status": "pass",
+            "message": "Infrastructure path produced a usable run trace."
+          },
+          "state": {
+            "status": "pass",
+            "message": "State completed matched."
+          },
+          "turns": {
+            "status": "pass",
+            "message": "Turn sequence satisfied."
+          },
+          "toolSelection": {
+            "status": "pass",
+            "message": "Expected tool family used."
+          },
+          "flow": {
+            "status": "pass",
+            "message": "No flow sequence contract."
+          },
+          "clarification": {
+            "status": "pass",
+            "message": "No clarification contract."
+          },
+          "clarificationQuality": {
+            "status": "pass",
+            "message": "No clarification quality contract."
+          },
+          "messageOrder": {
+            "status": "pass",
+            "message": "Message ordering satisfied."
+          },
+          "sourceQuality": {
+            "status": "pass",
+            "message": "No source-quality contract."
+          },
+          "exactOutput": {
+            "status": "pass",
+            "message": "No exact-output contract."
+          },
+          "ragQuality": {
+            "status": "pass",
+            "message": "No RAG quality contract."
+          },
+          "policy": {
+            "status": "pass",
+            "message": "No blocking policy issue."
+          },
+          "truth": {
+            "status": "pass",
+            "message": "No truth mismatch detected."
+          },
+          "finalContract": {
+            "status": "pass",
+            "message": "Final contract satisfied."
+          },
+          "diagnostics": {
+            "status": "pass",
+            "message": "No required diagnostics."
+          },
+          "artifacts": {
+            "status": "pass",
+            "message": "Artifacts OK."
+          }
+        },
+        "overall": "pass",
+        "score": 16.0,
+        "maxScore": 16,
+        "suspectedFailureClass": null
+      }
+    }
+  ],
+  "updatedAt": "2026-03-17T11:03:44.579576+00:00",
+  "artifact_path": "/Users/victor/Documents/continue-better/streamlit-python-only/.tmp_matrix_terminal_followup/matrix/matrix-1773745424579.json"
+}

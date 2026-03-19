@@ -18,8 +18,9 @@ def merge_timeline(existing: list[dict[str, Any]], new_events: list[dict[str, An
 
 def derive_pending_items(timeline: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     approvals: dict[str, dict[str, Any]] = {}
-    clarification: dict[str, Any] | None = None
-    for event in timeline:
+    clarifications: dict[str, dict[str, Any]] = {}
+    resolved_runs: set[str] = set()
+    for order, event in enumerate(timeline):
         if event.get("type") == "approval_required":
             approvals[str(event["actionId"])] = {
                 "approval_id": event["actionId"],
@@ -31,20 +32,35 @@ def derive_pending_items(timeline: list[dict[str, Any]]) -> tuple[list[dict[str,
         elif event.get("type") == "approval_decision":
             approvals.pop(str(event.get("actionId")), None)
         elif event.get("type") == "clarification_required":
-            clarification = {
-                "clarification_id": event["clarificationId"],
+            clarification_id = str(event.get("clarificationId") or "")
+            if not clarification_id:
+                continue
+            clarifications[clarification_id] = {
+                "clarification_id": clarification_id,
                 "run_id": event.get("runId"),
                 "question": event.get("question") or "",
                 "questions": event.get("questions") or [],
                 "options": event.get("options") or [],
+                "_order": order,
             }
         elif event.get("type") == "clarification_answered":
-            if clarification and clarification.get("clarification_id") == event.get("clarificationId"):
-                clarification = None
+            clarification_id = str(event.get("clarificationId") or "")
+            if clarification_id in clarifications:
+                clarifications.pop(clarification_id, None)
         elif event.get("type") == "run_state" and event.get("state") not in {"awaiting_approval", "awaiting_clarification"}:
-            if clarification and clarification.get("run_id") == event.get("runId"):
-                clarification = None
-    return list(approvals.values()), clarification
+            run_id = str(event.get("runId") or "")
+            if run_id:
+                resolved_runs.add(run_id)
+    pending_clarifications = [
+        clarification
+        for clarification in clarifications.values()
+        if clarification.get("run_id") not in resolved_runs
+    ]
+    pending_clarifications.sort(key=lambda item: int(item.get("_order", 0)))
+    active_clarification = pending_clarifications[-1] if pending_clarifications else None
+    if active_clarification:
+        active_clarification = {key: value for key, value in active_clarification.items() if key != "_order"}
+    return list(approvals.values()), active_clarification
 
 
 def flatten_tree(tree: dict[str, Any]) -> list[str]:
@@ -345,7 +361,7 @@ def build_terminal_component_html(
         "runId": run_id,
         "initialTerminalId": initial_terminal_id,
     }
-    payload = html.escape(json.dumps(config, ensure_ascii=False))
+    payload = json.dumps(config, ensure_ascii=False).replace("</", "<\\/")
     return f"""
     <div class="cb-terminal-shell">
       <div class="cb-terminal-toolbar">
@@ -436,7 +452,15 @@ def build_terminal_component_html(
       }}
     </style>
     <script>
-      const cfg = JSON.parse(document.getElementById("cb-terminal-config").textContent);
+      let cfg = null;
+      try {{
+        cfg = JSON.parse(document.getElementById("cb-terminal-config").textContent || "{{}}");
+      }} catch (error) {{
+        console.error("Failed to parse terminal config", error);
+        document.getElementById("cb-terminal-meta").textContent = "Terminal configuration failed to load.";
+        document.getElementById("cb-terminal-fallback").style.display = "block";
+        document.getElementById("cb-terminal-fallback").textContent = String(error && error.message ? error.message : error);
+      }}
       const host = document.getElementById("cb-terminal-host");
       const fallback = document.getElementById("cb-terminal-fallback");
       const modeEl = document.getElementById("cb-terminal-mode");
@@ -456,6 +480,22 @@ def build_terminal_component_html(
         fallback.style.display = "block";
         fallback.textContent += text;
         fallback.scrollTop = fallback.scrollHeight;
+      }}
+
+      function reportTerminalError(label, error) {{
+        const message = error && error.message ? error.message : String(error || label);
+        setMode("Error", "#fca5a5");
+        setMeta(label + ": " + message);
+        appendFallback("\\n[" + label.toLowerCase() + "] " + message + "\\n");
+      }}
+
+      function parseSsePayload(block) {{
+        const lines = block.split("\\n");
+        const dataLines = [];
+        for (const line of lines) {{
+          if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+        }}
+        return dataLines.join("\\n").trim();
       }}
 
       function renderSnapshot(snapshot) {{
@@ -492,6 +532,7 @@ def build_terminal_component_html(
       }}
 
       async function fetchJson(path, init) {{
+        if (!cfg || !cfg.backendUrl) throw new Error("Terminal backend configuration is unavailable");
         const response = await fetch(cfg.backendUrl + path, {{
           ...init,
           headers: {{ "Content-Type": "application/json", ...(init && init.headers ? init.headers : {{}}) }},
@@ -506,23 +547,34 @@ def build_terminal_component_html(
         const controller = new AbortController();
         state.controller = controller;
         setMode("Streaming", "#9bd7ff");
-        const response = await fetch(cfg.backendUrl + `/v1/terminals/${{encodeURIComponent(state.terminal.terminalId)}}/stream`, {{ signal: controller.signal }});
-        if (!response.ok || !response.body) throw new Error(await response.text() || "stream failed");
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        while (true) {{
-          const {{ done, value }} = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, {{ stream: true }});
-          const parts = buffer.split("\\n\\n");
-          buffer = parts.pop() || "";
-          for (const part of parts) {{
-            if (!part.startsWith("data: ")) continue;
-            const event = JSON.parse(part.slice(6).trim());
-            handleEvent(event);
-            if (event.type === "terminal_exit") return;
+        try {{
+          const response = await fetch(cfg.backendUrl + `/v1/terminals/${{encodeURIComponent(state.terminal.terminalId)}}/stream`, {{ signal: controller.signal }});
+          if (!response.ok || !response.body) throw new Error(await response.text() || "stream failed");
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          while (true) {{
+            const {{ done, value }} = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, {{ stream: true }});
+            const parts = buffer.split("\\n\\n");
+            buffer = parts.pop() || "";
+            for (const part of parts) {{
+              const payload = parseSsePayload(part);
+              if (!payload) continue;
+              let event = null;
+              try {{
+                event = JSON.parse(payload);
+              }} catch (error) {{
+                console.warn("Skipping unparsable terminal stream chunk", payload, error);
+                continue;
+              }}
+              handleEvent(event);
+              if (event.type === "terminal_exit") return;
+            }}
           }}
+        }} catch (error) {{
+          reportTerminalError("Terminal stream failed", error);
         }}
       }}
 
@@ -573,26 +625,32 @@ def build_terminal_component_html(
       }}
 
       async function openTerminal() {{
-        await ensureTerminalUi();
-        const result = await fetchJson("/v1/terminals", {{
-          method: "POST",
-          body: JSON.stringify({{
-            session_id: cfg.sessionId,
-            run_id: cfg.runId,
-            workspace_root: cfg.workspaceRoot,
-            owner: "user",
-          }}),
-        }});
-        state.terminal = result.terminal;
-        renderSnapshot(result.terminal);
-        for (const event of result.events || []) handleEvent(event);
-        await connectStream();
+        setMode("Opening", "#9bd7ff");
+        setMeta("Starting terminal session...");
+        try {{
+          await ensureTerminalUi();
+          const result = await fetchJson("/v1/terminals", {{
+            method: "POST",
+            body: JSON.stringify({{
+              session_id: cfg ? cfg.sessionId : null,
+              run_id: cfg ? cfg.runId : null,
+              workspace_root: cfg ? cfg.workspaceRoot : null,
+              owner: "user",
+            }}),
+          }});
+          state.terminal = result.terminal;
+          renderSnapshot(result.terminal);
+          for (const event of result.events || []) handleEvent(event);
+          await connectStream();
+        }} catch (error) {{
+          reportTerminalError("Terminal open failed", error);
+        }}
       }}
 
       async function loadExisting() {{
-        await ensureTerminalUi();
-        if (!cfg.initialTerminalId) return;
+        if (!cfg || !cfg.initialTerminalId) return;
         try {{
+          await ensureTerminalUi();
           const result = await fetchJson(`/v1/terminals/${{encodeURIComponent(cfg.initialTerminalId)}}`);
           state.terminal = result.terminal;
           renderSnapshot(result.terminal);

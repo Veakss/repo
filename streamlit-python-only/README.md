@@ -1,6 +1,6 @@
-# Continue Better Python
+# AI Technical Assistant
 
-Parallel rewrite of Continue Better with a Python-only product stack:
+Python-only implementation of AI Technical Assistant, built as the long-term rewrite of Continue Better:
 
 - `frontend/`: Streamlit UI with custom components when Streamlit alone is not enough
 - `backend/`: FastAPI control plane, persistence, SSE relay, session/run APIs
@@ -10,6 +10,11 @@ Parallel rewrite of Continue Better with a Python-only product stack:
 - `docs/`: roadmap, handoff notes, architecture decisions, and progress logs
 
 This subtree is the new source of truth for the Python migration. The legacy TypeScript implementation remains in the repo as the reference baseline until parity is reached.
+
+Frontend note:
+
+- `frontend/app.py` is the canonical Streamlit entrypoint
+- the Streamlit shell now carries the active product branding `AI Technical Assistant`
 
 Current status:
 

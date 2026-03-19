@@ -88,7 +88,7 @@ def main() -> int:
     )
 
     env = os.environ.copy()
-    database_name = f"continue_better_python_phase4_live_{run_stamp}"
+    database_name = f"streamlit_python_only_phase4_live_{run_stamp}"
     env.update(
         {
             "PYTHONPATH": f"{PROJECT_ROOT}:{PROJECT_ROOT / 'src'}:{PROJECT_ROOT / 'frontend'}:{env.get('PYTHONPATH', '')}",

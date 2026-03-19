@@ -33,7 +33,7 @@
 
 ## Shared Package
 
-`src/continue_better_py/` will centralize:
+`src/streamlit_python_only/` centralizes:
 
 - settings
 - schemas

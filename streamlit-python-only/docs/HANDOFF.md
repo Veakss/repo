@@ -2,7 +2,24 @@
 
 ## Current Intent
 
-Port the full Continue Better product to a Python-only stack inside `streamlit-python-only/`.
+Port AI Technical Assistant to a Python-only stack inside `streamlit-python-only/`, while keeping Continue Better as the legacy reference baseline.
+
+## Current Status At A Glance
+
+- Frontend scope from this phase is in a good state:
+  - `frontend/app.py` is now the single canonical Streamlit shell
+  - active Streamlit shell behavior is now frontend-autonomous on the canonical path
+  - user-first / assistant-after rendering is enforced more cleanly in chat, clarification resume, and approval resume flows
+  - clarification state handling is less noisy and more robust
+- Matrix Lab is now strong enough to support a tighter improvement loop:
+  - reports distinguish infra issues from product-quality misses
+  - reports surface failed dimensions directly in the Streamlit UI
+  - exact-output, source quality, message ordering, and RAG quality now have dedicated grading dimensions
+- The main remaining work is not broad frontend plumbing anymore.
+  It is concentrated on a few live behavior gaps:
+  - `web_latest_with_sources`
+  - `terminal_sequential_inspect`
+  - `rag_session_docs_multiturn_backend`
 
 ## Decisions Already Locked
 
@@ -15,6 +32,7 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
   - OpenRouter
   - Thales
 - Thales must support `.env` and YAML config
+- enterprise Thales mode must support `config.yaml`-style resolution in addition to the local provider catalog
 - Runtime mode is provider-aware and can choose `auto`
 
 ## Immediate Next Steps
@@ -29,6 +47,11 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
      - `terminal_sequential_inspect`
      - `rag_session_docs_multiturn_backend`
    - deeper Thales live validation when credentials are available
+   - keep validating the new enterprise YAML + sequential-tool provider path against a real Thales endpoint
+   - add an explicit Thales enterprise mode:
+     - support `config.yaml` as the expected Windows/Thales provider configuration input
+     - model Thales provider capabilities explicitly instead of treating it as a generic OpenAI-compatible provider
+     - enforce single-tool-per-turn behavior for Thales rather than assuming multi-tool native orchestration
    - UI refinements and performance polish
    - continue replacing Streamlit-native rough edges with custom surfaces where the JS shell is materially cleaner
    - keep manually verifying the live browser result when overriding Streamlit accent colors or fixed-position controls
@@ -39,6 +62,10 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
    - `verify_lot5_live.py`
    - `verify_lot6_live.py`
    - `evaluate_capabilities.py`
+4. Use `docs/FUTURE_PRIORITIES.md` as the reference for the next hardening phase:
+   - domain-by-domain priorities
+   - what is essential now vs secondary
+   - recommended sequencing for the next improvements
 
 ## Practical Constraints
 
@@ -62,6 +89,8 @@ Port the full Continue Better product to a Python-only stack inside `streamlit-p
 ## Provider-Specific Reminder
 
 The Windows Thales variant confirmed that standard OpenAI replay with `assistant.tool_calls` and `role=tool` is not reliable for Thales on follow-up turns. Preserve a dedicated textual replay path in the Python sidecar.
+
+Also keep in mind that the target Windows/Thales environment uses a `config.yaml`-driven provider configuration path, and the Thales API should be treated as a single-tool-per-turn runtime surface rather than a provider that safely supports multi-tool native turns.
 
 ## Verified So Far
 
@@ -133,10 +162,14 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
 - `tests/test_streamlit_app.py` covers the core phase 3 layout through `streamlit.testing.v1`
 - `scripts/verify_lot3.py` runs the full project test suite plus compile checks
 - `scripts/verify_lot3_live.py` starts real sidecar and backend processes, uses the local Mongo daemon, drives the Streamlit app through `AppTest`, and verifies persisted assistant output
-- `src/continue_better_py/rag.py` is the new shared RAG implementation used by the sidecar and runtime tool
+- `src/streamlit_python_only/rag.py` is the new shared RAG implementation used by the sidecar and runtime tool
 - `scripts/verify_lot4.py` runs the full test suite and compile checks after RAG changes
 - `scripts/verify_lot4_live.py` verifies real import, indexing, lookup, session memory availability, and a live model answer against indexed session docs
-- `src/continue_better_py/matrix.py` is the new shared Matrix implementation used by the backend
+- `src/streamlit_python_only/matrix.py` is the new shared Matrix implementation used by the backend
+
+- package migration status:
+  - backend, sidecar, tests, and scripts now import `streamlit_python_only.*`
+  - `continue_better_py` is now only a residual compatibility shim; the canonical frontend path no longer depends on it
 - `scripts/verify_lot5.py` runs deterministic Matrix verification
 - `scripts/verify_lot5_live.py` verifies real Matrix job execution, report persistence, and compare on backend + sidecar + Mongo
 - `scripts/probe_provider.py` probes the configured provider profile directly
@@ -173,3 +206,51 @@ The Windows Thales variant confirmed that standard OpenAI replay with `assistant
   - latest live browser smoke confirmed:
     - a normal prompt send returns a real assistant reply
     - the `Files` inspector panel opens and shows file preview content
+- latest frontend/package alignment pass:
+  - `frontend/app.py` is now the canonical Streamlit entrypoint
+  - the temporary duplicate frontend shell has been removed
+  - the temporary `continue_better_py` shim should no longer be needed by the active Streamlit frontend path
+  - assistant streaming and clarification-resume rendering now happen inside the main chat column instead of a detached area below the shell
+- latest frontend UX parity follow-up:
+  - approval-resume rendering now follows the same pattern and also streams back into the main chat column
+  - clarification dialog and clarification inspector now share deduplicated question/option extraction, which reduces repeated prompts in multi-round clarification flows
+- latest Matrix precision pass:
+  - grading now exposes distinct `infra`, `flow`, `clarificationQuality`, `messageOrder`, and `finalContract` dimensions
+  - backend-relay Matrix runs now snapshot persisted session messages so `user first / assistant after` can be checked in reports
+  - new scenario coverage was added for:
+    - workspace exploration before clarification
+    - terminal exact-output
+  - existing clarification and multiturn scenarios now also assert message ordering, and clarification scenarios assert option/question quality
+  - backend message snapshotting now degrades safely to an empty capture when a test surface/mock does not expose `/v1/sessions/{id}/messages`, so Matrix jobs fail on grading instead of crashing at collection time
+- latest evaluation-loop follow-up:
+  - `scripts/evaluate_capabilities.py` now covers:
+    - basic persisted message ordering
+    - terminal exact-output
+    - clarification on broad product prompts
+    - previous terminal/interactive/approval checks
+  - the Streamlit Matrix report view now exposes:
+    - per-run failed dimensions
+    - a priority failures table
+    - a scenario summary with top weak dimensions
+  - deterministic/live lot 5 verification now checks that the new Matrix dimensions are really present in generated reports, not just that report generation succeeds
+- latest Matrix precision follow-up:
+  - Matrix now also exposes dedicated dimensions for:
+    - `sourceQuality`
+    - `exactOutput`
+    - `ragQuality`
+  - these are now wired into the scenarios that matter for current parity gaps:
+    - `web_latest_with_sources`
+    - exact-output terminal/file scenarios
+    - `rag_session_docs_multiturn_backend`
+  - this makes the remaining live hard fails easier to read as product-quality misses instead of a generic `finalContract` bucket
+- latest operator-UX follow-up for Matrix/capability eval:
+  - the Streamlit Matrix panel now sorts and surfaces failures by severity first, then by number of failed dimensions
+  - it also exposes an overall weakest-dimensions table plus a scenario summary sorted by weakest pass rate
+  - `scripts/evaluate_capabilities.py` now provides a top-level triage summary (`failed_task_ids`, `ordering_failures`, `clarification_tasks`) so live runs are easier to scan without opening each task payload
+- known limitation:
+  - Matrix can validate persisted chat ordering and run/event flow, but it still cannot fully score visual Streamlit details such as modal centering, perceived polish, or animation smoothness; keep a manual UI smoke in the loop for those
+
+## Frontend Canonical Path
+
+- use `frontend/app.py` for real Streamlit runs
+- `scripts/run_frontend.sh` and `scripts/run_all.sh` now launch `app.py`

@@ -34,6 +34,18 @@ def test_derive_pending_items_tracks_approval_and_clarification_state():
     assert clarification is None
 
 
+def test_derive_pending_items_ignores_replayed_resolved_clarification():
+    timeline = [
+        {"type": "clarification_required", "runId": "r1", "clarificationId": "c1", "question": "Which file?", "questions": ["Which file?"], "options": []},
+        {"type": "clarification_answered", "runId": "r1", "clarificationId": "c1", "answer": "Use app.py"},
+        {"type": "run_state", "runId": "r1", "state": "completed"},
+        {"type": "clarification_required", "runId": "r1", "clarificationId": "c1", "question": "Which file?", "questions": ["Which file?"], "options": []},
+    ]
+    approvals, clarification = derive_pending_items(timeline)
+    assert approvals == []
+    assert clarification is None
+
+
 def test_flatten_tree_and_timeline_html():
     tree = {
         "root": "/tmp/demo",

@@ -8,7 +8,7 @@ from typing import Any
 import streamlit as st
 import streamlit.components.v1 as components
 
-from continue_better_py.settings import get_settings
+from streamlit_python_only.settings import get_settings
 CURRENT_DIR = Path(__file__).resolve().parent
 if str(CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(CURRENT_DIR))
@@ -24,6 +24,7 @@ except ModuleNotFoundError:
 ClientFactory = Callable[[], BackendClient]
 PANEL_HEIGHT = 700
 INSPECTOR_PANELS = ["Run", "Approvals", "Clarification", "Files", "RAG", "Terminal", "Matrix"]
+TRANSPARENT_PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 
 
 def parse_tool_directive(raw_text: str, toggles: dict[str, bool]) -> tuple[str, dict[str, bool], str | None]:
@@ -93,6 +94,10 @@ def ensure_state() -> None:
         "tool_toggle_apps": True,
         "tool_toggle_clarification": True,
         "active_inspector_panel": "Run",
+        "pending_prompt": None,
+        "pending_approval_decision": None,
+        "pending_clarification_answer": None,
+        "clarification_answer_input": "",
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -265,7 +270,41 @@ def create_session(client: BackendClient, title: str | None = None, *, announce:
         set_status(message="Session created")
 
 
-def on_send(prompt: str, client: BackendClient) -> None:
+def _queue_clarification_answer(answer: str) -> None:
+    st.session_state["messages"].append({"role": "user", "content": answer})
+    st.session_state["pending_clarification_answer"] = answer
+    st.session_state["clarification_answer_input"] = ""
+
+
+def _queue_approval_decision(approval_id: str, decision: str) -> None:
+    st.session_state["pending_approval_decision"] = {
+        "approval_id": approval_id,
+        "decision": decision,
+    }
+
+
+def _clarification_questions(clarification: dict[str, Any]) -> list[str]:
+    primary = str(clarification.get("question") or "").strip()
+    questions: list[str] = []
+    for raw_value in [primary, *(clarification.get("questions") or [])]:
+        value = str(raw_value or "").strip()
+        if value and value not in questions:
+            questions.append(value)
+    return questions
+
+
+def _clarification_option_labels(clarification: dict[str, Any]) -> list[str]:
+    labels: list[str] = []
+    for option in clarification.get("options", []):
+        if not isinstance(option, dict):
+            continue
+        label = str(option.get("label") or "").strip()
+        if label and label not in labels:
+            labels.append(label)
+    return labels
+
+
+def on_send(prompt: str, client: BackendClient, stream_target: Any) -> None:
     session_id = st.session_state["session_id"]
     if not session_id:
         create_session(client, "New session", announce=False)
@@ -286,8 +325,8 @@ def on_send(prompt: str, client: BackendClient) -> None:
     events: list[dict[str, Any]] = []
     assistant_text = ""
     set_active_panel("Run")
-    st.session_state["messages"].append({"role": "user", "content": cleaned_prompt})
-    with st.chat_message("assistant"):
+    
+    with stream_target.chat_message("assistant", avatar=TRANSPARENT_PIXEL):
         placeholder = st.empty()
         placeholder.markdown("_Thinking…_")
         try:
@@ -306,24 +345,58 @@ def on_send(prompt: str, client: BackendClient) -> None:
     set_status(message="Run completed" if assistant_text else "Run paused for action")
 
 
-def respond_to_approval(client: BackendClient, approval_id: str, decision: str) -> None:
+def respond_to_approval(client: BackendClient, approval_id: str, decision: str, stream_target: Any) -> None:
     session_id = st.session_state["session_id"]
     if not session_id:
         return
-    events = list(client.stream_approval(approval_id, decision))
-    assistant_text = "".join(event.get("token", "") for event in events if event.get("type") == "token").strip()
+
+    events = []
+    assistant_text = ""
+    with stream_target.chat_message("assistant", avatar=TRANSPARENT_PIXEL):
+        placeholder = st.empty()
+        placeholder.markdown("_Resuming run…_")
+        try:
+            for event in client.stream_approval(approval_id, decision):
+                events.append(event)
+                if event.get("type") == "token":
+                    assistant_text += event.get("token", "")
+                    placeholder.markdown(assistant_text)
+        except Exception as exc:
+            placeholder.markdown("_The run failed before a response was rendered._")
+            set_status(error=f"Approval run failed: {exc}")
+            raise
+        if not assistant_text:
+            placeholder.markdown("_Waiting for a tool result, approval, or clarification._")
+
     consume_events(client, session_id, events, assistant_text=assistant_text or None)
     if not st.session_state["pending_approvals"] and not st.session_state["pending_clarification"]:
         set_active_panel("Run")
     set_status(message=f"Approval {decision}")
 
 
-def respond_to_clarification(client: BackendClient, clarification_id: str, answer: str) -> None:
+def respond_to_clarification(client: BackendClient, clarification_id: str, answer: str, stream_target: Any) -> None:
     session_id = st.session_state["session_id"]
     if not session_id:
         return
-    events = list(client.stream_clarification(clarification_id, answer))
-    assistant_text = "".join(event.get("token", "") for event in events if event.get("type") == "token").strip()
+    
+    events = []
+    assistant_text = ""
+    with stream_target.chat_message("assistant", avatar=TRANSPARENT_PIXEL):
+        placeholder = st.empty()
+        placeholder.markdown("_Resuming run…_")
+        try:
+            for event in client.stream_clarification(clarification_id, answer):
+                events.append(event)
+                if event.get("type") == "token":
+                    assistant_text += event.get("token", "")
+                    placeholder.markdown(assistant_text)
+        except Exception as exc:
+            placeholder.markdown("_The run failed before a response was rendered._")
+            set_status(error=f"Chat run failed: {exc}")
+            raise
+        if not assistant_text:
+            placeholder.markdown("_Waiting for a tool result, approval, or clarification._")
+            
     consume_events(client, session_id, events, assistant_text=assistant_text or None)
     if not st.session_state["pending_clarification"]:
         set_active_panel("Run")
@@ -333,6 +406,14 @@ def respond_to_clarification(client: BackendClient, clarification_id: str, answe
 def _shorten(value: str | None, limit: int = 24) -> str:
     text = str(value or "none")
     return text if len(text) <= limit else f"{text[:limit-1]}…"
+
+
+def format_session_label(session: dict[str, Any]) -> str:
+    title = str(session.get("title") or "Untitled session").strip() or "Untitled session"
+    message_count = int(session.get("message_count") or 0)
+    short_id = str(session.get("id") or "")[:6]
+    suffix = f" · {short_id}" if short_id else ""
+    return f"{title} · {message_count} messages{suffix}"
 
 
 def render_notice() -> None:
@@ -363,14 +444,7 @@ def render_session_panel(client: BackendClient) -> None:
             options=session_ids,
             index=current_index,
             key="session_picker",
-            format_func=lambda session_id: next(
-                (
-                    f"{session['title']} · {session.get('message_count', 0)} messages"
-                    for session in sessions
-                    if session["id"] == session_id
-                ),
-                session_id,
-            ),
+            format_func=lambda session_id: next((format_session_label(session) for session in sessions if session["id"] == session_id), session_id),
         )
         if selected_session_id != current_session_id:
             st.session_state["session_id"] = selected_session_id
@@ -383,10 +457,12 @@ def render_session_panel(client: BackendClient) -> None:
 
     left, right = st.columns(2)
     if left.button("Refresh", use_container_width=True):
-        bootstrap(get_client())
+        bootstrap(client)
         set_status(message="Backend refreshed")
+        st.rerun()
     if right.button("New Session", use_container_width=True):
         create_session(client)
+        st.rerun()
 
     selected = st.session_state["session_id"]
     current = next((session for session in sessions if session["id"] == selected), None)
@@ -430,7 +506,7 @@ def render_header() -> None:
 
     title_col, model_col, policy_col, controls_col = st.columns([1.35, 1.0, 1.0, 0.28], gap="small", vertical_alignment="center")
     with title_col:
-        st.markdown('<div class="cb-title-block"><h1>Continue Better</h1></div>', unsafe_allow_html=True)
+        st.markdown('<div class="cb-title-block"><h1>AI Technical Assistant</h1></div>', unsafe_allow_html=True)
         render_shell_stats()
     with model_col:
         st.caption("MODEL")
@@ -479,17 +555,26 @@ def render_header() -> None:
 def render_chat_panel() -> None:
     st.markdown("#### Conversation")
     for message in st.session_state["messages"]:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        with st.chat_message(message["role"], avatar=TRANSPARENT_PIXEL):
+            if message["role"] == "user":
+                st.markdown(f"<div class='user-msg-marker'></div>\n\n{message['content']}", unsafe_allow_html=True)
+            else:
+                st.markdown(message["content"])
+    live_response_slot = st.container()
     st.markdown('<div class="cb-chat-bottom-spacer"></div>', unsafe_allow_html=True)
+    return live_response_slot
 
 
-def render_chat_composer(client: BackendClient) -> None:
-    prompt = st.chat_input("Ask the agent")
+def render_chat_composer(client: BackendClient, stream_target: Any) -> None:
+    prompt = st.chat_input("Ask the agent", disabled=bool(st.session_state.get("pending_clarification")))
     if prompt:
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        on_send(prompt, client)
+        st.session_state["pending_prompt"] = prompt
+        st.session_state["messages"].append({"role": "user", "content": prompt})
+        st.rerun()
+
+    if st.session_state.get("pending_prompt"):
+        prompt_to_process = st.session_state.pop("pending_prompt")
+        on_send(prompt_to_process, client, stream_target)
         st.rerun()
 
 
@@ -533,32 +618,80 @@ def render_approvals_panel(client: BackendClient) -> None:
         st.code(approval["arguments"] or "{}", language="json")
         approve_col, reject_col = st.columns(2)
         if approve_col.button("Approve", key=f"approve-{approval['approval_id']}", use_container_width=True):
-            respond_to_approval(client, approval["approval_id"], "approved")
+            _queue_approval_decision(approval["approval_id"], "approved")
             st.rerun()
         if reject_col.button("Reject", key=f"reject-{approval['approval_id']}", use_container_width=True):
-            respond_to_approval(client, approval["approval_id"], "rejected")
+            _queue_approval_decision(approval["approval_id"], "rejected")
             st.rerun()
         st.markdown("---")
 
+
+@st.dialog("Clarification Needed")
+def clarification_dialog(client: BackendClient) -> None:
+    clarification = st.session_state["pending_clarification"]
+    if not clarification:
+        st.rerun()
+        return
+        
+    questions = _clarification_questions(clarification)
+    st.markdown(f"**{questions[0] if questions else 'Clarification required'}**")
+    for question in questions[1:3]:
+        st.write(f"• {question}")
+
+    options = _clarification_option_labels(clarification)
+    
+    if options:
+        st.caption("Suggestions")
+        # Display options as a grid of buttons (2 per row)
+        for i in range(0, len(options), 2):
+            cols = st.columns(2)
+            if cols[0].button(options[i], key=f"clarify_opt_{i}", use_container_width=True):
+                _queue_clarification_answer(options[i])
+                st.rerun()
+            if i + 1 < len(options):
+                if cols[1].button(options[i+1], key=f"clarify_opt_{i+1}", use_container_width=True):
+                    _queue_clarification_answer(options[i + 1])
+                    st.rerun()
+                    
+    st.caption("Quick Actions")
+    quick_cols = st.columns(2)
+    if quick_cols[0].button("Skip clarification", key="clarify_skip", use_container_width=True):
+        _queue_clarification_answer("Skip clarification")
+        st.rerun()
+    if quick_cols[1].button("Do your best", key="clarify_best", use_container_width=True):
+        _queue_clarification_answer("Do your best with current info")
+        st.rerun()
+                
+    st.markdown("---")
+    answer = st.text_area("Or type your answer", key="clarification_answer_input", label_visibility="collapsed", placeholder="Type your answer here...")
+    
+    cols = st.columns([1, 1])
+    if cols[0].button("Cancel Run", use_container_width=True):
+        _queue_clarification_answer("Cancel the run.")
+        st.rerun()
+        
+    if cols[1].button("Send Answer", type="primary", use_container_width=True):
+        if answer.strip():
+            _queue_clarification_answer(answer.strip())
+            st.rerun()
 
 def render_clarification_panel(client: BackendClient) -> None:
     clarification = st.session_state["pending_clarification"]
     if not clarification:
         st.info("No clarification needed.")
         return
-    st.markdown(f"**{clarification['question'] or 'Clarification required'}**")
-    for idx, question in enumerate(clarification.get("questions", [])[:3], start=1):
-        st.write(f"{idx}. {question}")
-    options = [option["label"] for option in clarification.get("options", []) if isinstance(option, dict) and option.get("label")]
-    if options:
-        st.caption("Quick options")
-        st.write(" | ".join(options))
-    with st.form("clarification_form", clear_on_submit=True):
-        answer = st.text_area("Answer", value="")
-        submitted = st.form_submit_button("Send Clarification", use_container_width=True)
-    if submitted and answer.strip():
-        respond_to_clarification(client, clarification["clarification_id"], answer.strip())
-        st.rerun()
+    questions = _clarification_questions(clarification)
+    st.markdown(f"**{questions[0] if questions else 'Clarification required'}**")
+    run_id = clarification.get("run_id")
+    if run_id:
+        st.caption(f"Run: {run_id}")
+    for question in questions[1:3]:
+        st.write(f"• {question}")
+    option_labels = _clarification_option_labels(clarification)
+    if option_labels:
+        st.caption("Suggested answers")
+        st.markdown(" · ".join(option_labels[:3]))
+    st.info("The clarification dialog is open. Answering there will resume the current run in the chat column.")
 
 
 def render_files_panel(client: BackendClient) -> None:
@@ -729,6 +862,30 @@ def _format_ratio(value: float | None) -> str:
     return f"{value * 100:.1f}%"
 
 
+def _matrix_failure_dimensions(result: dict[str, Any]) -> str:
+    dimensions = result.get("grade", {}).get("dimensions", {})
+    failures = [name for name, entry in dimensions.items() if entry.get("status") != "pass"]
+    return ", ".join(failures) if failures else "none"
+
+
+def _matrix_failure_count(result: dict[str, Any]) -> int:
+    dimensions = result.get("grade", {}).get("dimensions", {})
+    return sum(1 for entry in dimensions.values() if entry.get("status") != "pass")
+
+
+def _matrix_status_rank(status: str) -> int:
+    normalized = str(status or "")
+    return {"hard_fail": 0, "soft_fail": 1, "pass": 2}.get(normalized, 3)
+
+
+def _matrix_status_badge(status: str) -> str:
+    return {
+        "pass": "pass",
+        "soft_fail": "soft fail",
+        "hard_fail": "hard fail",
+    }.get(str(status or ""), str(status or "n/a"))
+
+
 def render_matrix_panel(client: BackendClient) -> None:
     catalog = st.session_state.get("matrix_catalog") or {"scenarios": [], "profiles": [], "surfaces": []}
     reports = st.session_state.get("matrix_reports") or []
@@ -790,10 +947,10 @@ def render_matrix_panel(client: BackendClient) -> None:
         report = st.session_state.get("matrix_report")
         if not report:
             return
-        summary = report.get("aggregate", {}).get("byModel", {})
         results = report.get("results", [])
         runs = len(results)
         pass_count = sum(1 for row in results if row["grade"]["overall"] == "pass")
+        soft_fail_count = sum(1 for row in results if row["grade"]["overall"] == "soft_fail")
         hard_fail_count = sum(1 for row in results if row["grade"]["overall"] == "hard_fail")
         metric_cols = st.columns(4)
         metric_cols[0].metric("Runs", str(runs))
@@ -801,6 +958,8 @@ def render_matrix_panel(client: BackendClient) -> None:
         metric_cols[2].metric("Hard Fail Rate", _format_ratio(hard_fail_count / runs if runs else None))
         avg_score = sum(row["grade"]["score"] / row["grade"]["maxScore"] for row in results) / runs if runs else None
         metric_cols[3].metric("Avg Score", _format_ratio(avg_score))
+        if soft_fail_count:
+            st.caption(f"Soft fails: {soft_fail_count}")
 
         filters = st.columns(4)
         filter_model = filters[0].selectbox("Filter model", options=["all"] + sorted(report.get("models", [])), index=0, key="matrix_filter_model")
@@ -824,14 +983,77 @@ def render_matrix_panel(client: BackendClient) -> None:
                     "model": row["model"],
                     "profile": row["profile"],
                     "surface": row["surface"],
-                    "status": row["grade"]["overall"],
+                    "status": _matrix_status_badge(row["grade"]["overall"]),
                     "score": f"{row['grade']['score']}/{row['grade']['maxScore']}",
                     "tools": ", ".join(row["summary"].get("tools", [])),
                     "state": row["summary"].get("state"),
                     "latencyMs": row["summary"].get("latencyMs"),
+                    "failedDimensions": _matrix_failure_dimensions(row),
                 }
             )
+        filtered_rows.sort(
+            key=lambda row: (
+                _matrix_status_rank(str(row.get("status", "")).replace(" ", "_")),
+                len(str(row.get("failedDimensions") or "").split(", ")) if row.get("failedDimensions") not in {None, "", "none"} else 0,
+                str(row.get("scenario") or ""),
+            )
+        )
         st.dataframe(filtered_rows or [{"scenario": "none", "status": "n/a"}], use_container_width=True, hide_index=True)
+
+        failing_results = [row for row in results if row["grade"]["overall"] != "pass"]
+        if failing_results:
+            failing_results.sort(
+                key=lambda row: (
+                    _matrix_status_rank(str(row["grade"]["overall"])),
+                    -_matrix_failure_count(row),
+                    str(row.get("scenarioId") or ""),
+                )
+            )
+            st.caption("Priority failures")
+            failure_rows = []
+            for row in failing_results[:12]:
+                failure_rows.append(
+                    {
+                        "scenario": row["scenarioId"],
+                        "status": _matrix_status_badge(row["grade"]["overall"]),
+                        "failedDimensions": _matrix_failure_dimensions(row),
+                        "state": row["summary"].get("state"),
+                        "tools": ", ".join(row["summary"].get("tools", [])),
+                        "finalPreview": str(row["summary"].get("finalText") or "")[:120],
+                    }
+                )
+            st.dataframe(failure_rows, use_container_width=True, hide_index=True)
+
+        weak_dimensions: dict[str, dict[str, Any]] = {}
+        for row in results:
+            for name, entry in (row.get("grade", {}).get("dimensions") or {}).items():
+                bucket = weak_dimensions.setdefault(name, {"runs": 0, "fails": 0, "softFails": 0})
+                bucket["runs"] += 1
+                if entry.get("status") == "hard_fail":
+                    bucket["fails"] += 1
+                elif entry.get("status") == "soft_fail":
+                    bucket["softFails"] += 1
+        dimension_rows = []
+        for name, bucket in weak_dimensions.items():
+            fail_rate = ((bucket["fails"] + bucket["softFails"]) / bucket["runs"]) if bucket["runs"] else 0.0
+            dimension_rows.append(
+                {
+                    "dimension": name,
+                    "failRate": _format_ratio(fail_rate),
+                    "hardFails": bucket["fails"],
+                    "softFails": bucket["softFails"],
+                }
+            )
+        dimension_rows.sort(
+            key=lambda row: (
+                -float(str(row["failRate"]).rstrip("%") or 0) if row["failRate"] != "n/a" else 0.0,
+                -int(row["hardFails"]),
+                str(row["dimension"]),
+            )
+        )
+        if dimension_rows:
+            st.caption("Weakest dimensions")
+            st.dataframe(dimension_rows, use_container_width=True, hide_index=True)
 
         axis_rows = []
         for key, bucket in sorted(report.get("aggregate", {}).get("byModelProfileSurface", {}).items()):
@@ -847,6 +1069,37 @@ def render_matrix_panel(client: BackendClient) -> None:
         if axis_rows:
             st.caption("Axis summary")
             st.dataframe(axis_rows, use_container_width=True, hide_index=True)
+
+        scenario_rows = []
+        for key, bucket in sorted(report.get("aggregate", {}).get("byScenario", {}).items()):
+            scenario_rows.append(
+                {
+                    "scenario": key,
+                    "runs": bucket.get("runs"),
+                    "passRate": _format_ratio(bucket.get("passRate")),
+                    "avgScore": _format_ratio(bucket.get("avgScore")),
+                    "hardFails": bucket.get("hard_fail"),
+                    "topWeakDimensions": ", ".join(
+                        name
+                        for name, dim in sorted(
+                            (bucket.get("dimensions") or {}).items(),
+                            key=lambda item: (item[1].get("passRate") if item[1].get("passRate") is not None else 1.0, item[0]),
+                        )
+                        if dim.get("passRate") not in {None, 1.0}
+                    )
+                    or "none",
+                }
+            )
+        scenario_rows.sort(
+            key=lambda row: (
+                float(str(row["passRate"]).rstrip("%") or 0) if row["passRate"] != "n/a" else 100.0,
+                -int(row["hardFails"]),
+                str(row["scenario"]),
+            )
+        )
+        if scenario_rows:
+            st.caption("Scenario summary")
+            st.dataframe(scenario_rows, use_container_width=True, hide_index=True)
 
         compare_options = [report_id for report_id in report_ids if report_id != selected_report_id]
         compare_cols = st.columns([1.6, 1])
@@ -905,482 +1158,17 @@ def render_status_panels(client: BackendClient) -> None:
 
 
 def inject_css() -> None:
-    st.markdown(
-        """
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
-        :root {
-            --bg: #0a0d12;
-            --panel: #11151c;
-            --glass-surface: rgba(28, 34, 42, 0.6);
-            --border: #263042;
-            --text: #e6ebf2;
-            --text-muted: #97a3b6;
-            --accent: #1e7d6f;
-            --accent-2: #166357;
-            --accent-muted: rgba(45, 212, 191, 0.08);
-            --error: #EF4444;
-            --ok: #10B981;
-            --warn: #F59E0B;
-        }
-        .stApp {
-            background:
-                radial-gradient(circle at top left, rgba(126, 203, 255, 0.08), transparent 24%),
-                radial-gradient(circle at bottom right, rgba(114, 211, 155, 0.06), transparent 18%),
-                linear-gradient(180deg, #071019 0%, #0a1220 56%, #0d1622 100%);
-            color: var(--text);
-            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            -webkit-font-smoothing: antialiased;
-            overflow: hidden !important; /* Prevent scrolling on the main body */
-            height: 100vh;
-        }
-        .stApp::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            pointer-events: none;
-            opacity: 0.06;
-            background-image:
-                repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 2px),
-                repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 2px);
-        }
-        [data-testid="stSidebar"],
-        [data-testid="collapsedControl"],
-        header[data-testid="stHeader"] {
-            display: none !important;
-        }
-        .block-container {
-            padding-top: 0.7rem;
-            padding-bottom: 0;
-            max-width: 100%;
-            padding-left: 1rem;
-            padding-right: 1rem;
-            position: relative;
-            z-index: 1;
-            height: 100vh;
-            overflow: hidden;
-        }
-        .st-key-left_panel,
-        .st-key-center_panel,
-        .st-key-right_panel {
-            position: relative;
-            background: var(--glass-surface);
-            border: 1px solid rgba(148, 163, 184, 0.08);
-            border-radius: 12px;
-            padding: 0.65rem 0.7rem 0.75rem 0.7rem;
-            box-shadow:
-                0 20px 40px rgba(2, 6, 23, 0.28),
-                0 8px 18px rgba(2, 6, 23, 0.16);
-            backdrop-filter: blur(16px);
-            height: calc(100vh - 10rem) !important;
-            max-height: calc(100vh - 10rem) !important; /* Force max height */
-            min-height: 0 !important;
-            overflow-y: auto;
-            overflow-x: hidden;
-        }
-        .st-key-left_panel > div[data-testid="stVerticalBlock"],
-        .st-key-center_panel > div[data-testid="stVerticalBlock"],
-        .st-key-right_panel > div[data-testid="stVerticalBlock"] {
-            height: 100%;
-            overflow-y: auto; /* Enable scrolling on the inner container */
-            padding-right: 0.4rem;
-        }
-        .st-key-header_shell {
-            position: relative;
-            background: var(--glass-surface);
-            border: 1px solid rgba(148, 163, 184, 0.08);
-            border-radius: 12px;
-            padding: 0.28rem 0.62rem 0.26rem 0.62rem;
-            box-shadow:
-                0 20px 40px rgba(2, 6, 23, 0.28),
-                0 8px 18px rgba(2, 6, 23, 0.16);
-            backdrop-filter: blur(16px);
-            margin-bottom: 0.38rem;
-        }
-        .st-key-header_shell::before,
-        .st-key-left_panel::before,
-        .st-key-center_panel::before,
-        .st-key-right_panel::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 14px;
-            right: 14px;
-            height: 1px;
-            border-radius: 999px;
-            background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 18%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0.08) 82%, transparent 100%);
-            pointer-events: none;
-        }
-        .st-key-center_panel {
-            padding-bottom: 0;
-            display: flex;
-            flex-direction: column;
-        }
-        .st-key-left_panel,
-        .st-key-center_panel,
-        .st-key-right_panel {
-            padding-right: 0.4rem;
-        }
-        .st-key-left_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar,
-        .st-key-center_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar,
-        .st-key-right_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar {
-            width: 4px;
-        }
-        .st-key-left_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
-        .st-key-center_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
-        .st-key-right_panel [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb {
-            background: transparent;
-            border-radius: 4px;
-        }
-        .st-key-left_panel [data-testid="stVerticalBlock"]:hover::-webkit-scrollbar-thumb,
-        .st-key-center_panel [data-testid="stVerticalBlock"]:hover::-webkit-scrollbar-thumb,
-        .st-key-right_panel [data-testid="stVerticalBlock"]:hover::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-        }
-        .cb-title-block h1 {
-            font-size: 1.34rem !important;
-            line-height: 0.92 !important;
-            margin: 0 !important;
-            font-weight: 600 !important;
-        }
-        .cb-title-block p {
-            margin: 0;
-            color: var(--text-muted);
-            font-size: 0.66rem;
-            max-width: 28rem;
-        }
-        .cb-inline-stat-value {
-            display: inline-block;
-            margin-top: -0.35rem;
-            font-size: 0.78rem;
-            line-height: 1;
-            color: var(--text);
-            font-weight: 600;
-        }
-        [data-testid="stChatMessage"] {
-            background: rgba(17, 21, 28, 0.82);
-            border: 1px solid rgba(148, 163, 184, 0.12);
-            border-radius: 12px;
-            backdrop-filter: blur(14px);
-            box-shadow: 0 18px 40px rgba(2, 6, 23, 0.24);
-            margin-bottom: 0.45rem;
-            padding: 0.8rem 1rem;
-        }
-        [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
-            font-size: 0.85rem;
-        }
-        [data-testid="stChatMessageContent"] p {
-            line-height: 1.5;
-        }
-        .cb-mini-card {
-            display: grid;
-            gap: 0.22rem;
-            padding: 0.85rem 0.95rem;
-            margin: 0.25rem 0 0.8rem 0;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.015);
-            border: 1px solid rgba(148,163,184,0.12);
-        }
-        .cb-mini-label {
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            font-size: 0.68rem;
-            color: var(--text-muted);
-        }
-        .cb-mini-meta {
-            color: var(--text-muted);
-            font-size: 0.85rem;
-        }
-        .cb-notice {
-            margin: 0 0 14px 0;
-            padding: 12px 14px;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            font-size: 13px;
-            box-shadow: 0 16px 36px rgba(2, 6, 23, 0.32);
-        }
-        .cb-notice-success {
-            background: rgba(16, 185, 129, 0.12);
-            border-color: rgba(16, 185, 129, 0.22);
-            color: #a7f3d0;
-        }
-        .cb-notice-error {
-            background: rgba(239, 68, 68, 0.12);
-            border-color: rgba(239, 68, 68, 0.24);
-            color: #fecaca;
-        }
-        .cb-header-divider {
-            width: 100%;
-            height: 1px;
-            margin: 0.08rem 0 0 0;
-            background: linear-gradient(90deg, rgba(148,163,184,0.08), rgba(148,163,184,0.18), rgba(148,163,184,0.08));
-        }
-        .cb-chat-bottom-spacer {
-            height: 18rem;
-            flex-shrink: 0;
-            width: 100%;
-        }
-        h1, h2, h3, h4, label, [data-testid="stMetricLabel"] {
-            font-family: "Inter", ui-sans-serif, system-ui, sans-serif !important;
-        }
-        h1 {
-            font-size: 1.34rem !important;
-            line-height: 0.95 !important;
-            margin-bottom: 0 !important;
-        }
-        h4 {
-            font-size: 0.72rem !important;
-            letter-spacing: 0.03em;
-            margin-bottom: 0.15rem !important;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
-        [data-testid="stMarkdownContainer"] p,
-        [data-testid="stCaptionContainer"] {
-            font-size: 0.85rem;
-        }
-        [data-testid="stMarkdownContainer"] p {
-            color: var(--text);
-        }
-        [data-baseweb="input"] > div,
-        [data-baseweb="select"] > div,
-        [data-testid="stTextInput"] input,
-        [data-testid="stTextArea"] textarea {
-            background: rgba(8, 12, 18, 0.7) !important;
-            border-color: rgba(148, 163, 184, 0.22) !important;
-            color: var(--text) !important;
-            border-radius: 10px !important;
-            transition: border-color 140ms ease, box-shadow 140ms ease;
-        }
-        [data-baseweb="input"] > div:focus-within,
-        [data-baseweb="select"] > div:focus-within,
-        [data-testid="stTextInput"] input:focus,
-        [data-testid="stTextArea"] textarea:focus {
-            border-color: rgba(45, 212, 191, 0.45) !important;
-            box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.14) !important;
-        }
-        [data-testid="stTextInput"] label,
-        [data-testid="stSelectbox"] label,
-        [data-testid="stMultiSelect"] label,
-        [data-testid="stTextArea"] label,
-        [data-testid="stNumberInput"] label {
-            color: var(--text-muted) !important;
-        }
-        [data-baseweb="select"] svg,
-        [data-baseweb="input"] svg,
-        .st-emotion-cache-1umgz6k svg {
-            color: var(--text-muted) !important;
-            fill: var(--text-muted) !important;
-        }
-        [data-testid="stSelectbox"] > label,
-        [data-testid="stTextInput"] > label {
-            font-size: 0.64rem;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-        }
-        [data-testid="stPopover"] > button {
-            min-height: 2rem;
-            font-size: 0.8rem;
-            border-radius: 8px;
-        }
-        .stButton > button, .stDownloadButton > button {
-            border-radius: 8px;
-            border: 1px solid rgba(148, 163, 184, 0.22);
-            background: rgba(18, 24, 34, 0.62);
-            color: var(--text);
-            font-weight: 500;
-            min-height: 2.2rem;
-            font-size: 0.85rem;
-            transition: all 0.15s ease-out;
-        }
-        .stButton > button:hover {
-            background: var(--accent-muted) !important;
-            border-color: rgba(45, 212, 191, 0.28) !important;
-            color: var(--text) !important;
-        }
-        .stButton > button:active {
-            transform: scale(0.97);
-        }
-        .stButton > button[kind="primary"] {
-            background: linear-gradient(180deg, rgba(30, 125, 111, 0.82), rgba(22, 99, 87, 0.58)) !important;
-            border-color: rgba(45, 212, 191, 0.48) !important;
-            box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.14), 0 0 18px rgba(45, 212, 191, 0.14);
-        }
-        .stButton > button[kind="primary"]:hover {
-            background: linear-gradient(180deg, rgba(30, 125, 111, 0.95), rgba(22, 99, 87, 0.75)) !important;
-        }
-        [data-testid="stChatInput"] {
-            position: fixed !important;
-            left: 50% !important;
-            bottom: 1.5rem !important;
-            transform: translateX(-50%) !important;
-            width: min(48vw, 860px) !important;
-            z-index: 9999 !important;
-            background: var(--glass-surface) !important;
-            padding: 0.4rem 0.5rem !important;
-            border-radius: 16px !important;
-            border: 1px solid rgba(148, 163, 184, 0.08) !important;
-            box-shadow:
-                0 20px 40px rgba(2, 6, 23, 0.28),
-                0 8px 18px rgba(2, 6, 23, 0.16),
-                inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
-            backdrop-filter: blur(18px) !important;
-            transition: border-color 0.2s !important;
-            display: flex !important;
-        }
-        [data-testid="stChatInput"]::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 14px;
-            right: 14px;
-            height: 1px;
-            border-radius: 999px;
-            background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 18%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0.08) 82%, transparent 100%);
-            pointer-events: none;
-        }
-        [data-testid="stChatInput"]:focus-within {
-            border-color: rgba(45, 212, 191, 0.35);
-        }
-        [data-testid="stChatInput"] > div {
-            border: none !important;
-            box-shadow: none !important;
-            background: transparent !important;
-        }
-        [data-testid="stChatInput"] textarea,
-        [data-testid="stChatInput"] input {
-            background: transparent !important;
-            color: var(--text) !important;
-        }
-        [data-testid="stChatInput"] button {
-            background: linear-gradient(180deg, rgba(30, 125, 111, 0.82), rgba(22, 99, 87, 0.58)) !important;
-            border-color: rgba(45, 212, 191, 0.48) !important;
-            color: white !important;
-            border-radius: 8px;
-        }
-        [data-testid="stChatInput"] button svg {
-            fill: white !important;
-            color: white !important;
-        }
-        .st-key-floating_tools {
-            position: fixed;
-            left: calc(50% + min(24vw, 430px) + 1rem);
-            bottom: 1.5rem;
-            width: min(18rem, calc(100vw - (50% + min(24vw, 430px) + 2rem)));
-            z-index: 998;
-        }
-        .st-key-floating_tools > div {
-            background: var(--glass-surface);
-            border-radius: 12px;
-            border: 1px solid rgba(148, 163, 184, 0.08);
-            box-shadow:
-                0 20px 40px rgba(2, 6, 23, 0.28),
-                0 8px 18px rgba(2, 6, 23, 0.16);
-            backdrop-filter: blur(18px);
-            padding: 0.35rem;
-        }
-        .st-key-floating_tools .stButton > button {
-            min-height: 2rem;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            padding: 0.1rem 0.25rem;
-        }
-        .st-key-floating_tools .stButton > button[kind="primary"] {
-            background: linear-gradient(180deg, rgba(16, 185, 129, 0.11), rgba(16, 185, 129, 0.06)) !important;
-            border-color: rgba(16, 185, 129, 0.18) !important;
-            color: #d1fae5 !important;
-            box-shadow: none !important;
-        }
-        .st-key-floating_tools .stButton > button[kind="secondary"] {
-            background: transparent !important;
-            border-color: transparent !important;
-            color: var(--text-muted) !important;
-        }
-        .st-key-floating_tools .stButton > button[kind="secondary"]:hover {
-            background: rgba(148, 163, 184, 0.07) !important;
-            border-color: rgba(148, 163, 184, 0.12) !important;
-            color: var(--text) !important;
-        }
-        [data-testid="stBottomBlockContainer"] {
-            background: transparent !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            border: none !important;
-        }
-        [data-testid="stBottomBlockContainer"]::before {
-            display: none !important;
-        }
-        [data-testid="column"] {
-            min-height: 0;
-            height: 100%;
-        }
-        .st-key-left_panel h3,
-        .st-key-center_panel h3,
-        .st-key-right_panel h3 {
-            margin-top: 0.2rem;
-        }
-        .st-key-right_panel [data-testid="stHorizontalBlock"] .stButton > button {
-            margin-bottom: 0.8rem;
-            min-height: 2rem;
-            font-size: 0.78rem;
-        }
-        [data-testid="stCodeBlock"] pre, code, .stCodeBlock {
-            font-family: "IBM Plex Mono", ui-monospace, monospace !important;
-        }
-        /* Expander styling */
-        [data-testid="stExpander"] {
-            border: 1px solid rgba(148, 163, 184, 0.12) !important;
-            border-radius: 12px !important;
-            background: rgba(255, 255, 255, 0.015) !important;
-            overflow: hidden;
-        }
-        [data-testid="stExpander"] summary {
-            background: transparent !important;
-            padding: 0.6rem 0.8rem !important;
-            font-weight: 600 !important;
-            font-size: 0.85rem !important;
-            color: var(--text) !important;
-        }
-        [data-testid="stExpander"] summary:hover {
-            background: rgba(255, 255, 255, 0.03) !important;
-        }
-        [data-testid="stExpanderDetails"] {
-            padding: 0.8rem !important;
-            border-top: 1px solid rgba(148, 163, 184, 0.08);
-        }
-        @media (max-width: 1200px) {
-            .cb-title-block h1 {
-                font-size: 1.18rem !important;
-            }
-            [data-testid="stChatInput"] {
-                width: min(64vw, 900px);
-            }
-            .st-key-floating_tools {
-                left: calc(50% + min(32vw, 450px) - 7rem);
-                bottom: 5.8rem;
-                width: 14rem;
-            }
-        }
-        @media (max-width: 900px) {
-            .st-key-floating_tools {
-                left: 50%;
-                transform: translateX(-50%);
-                bottom: 5.9rem;
-                width: min(88vw, 22rem);
-            }
-            [data-testid="stChatInput"] {
-                width: min(88vw, 900px);
-            }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    css_path = Path(__file__).parent / "style.css"
+    if css_path.exists():
+        with open(css_path, "r", encoding="utf-8") as f:
+            css_content = f.read()
+        st.markdown(f"<style>\n{css_content}\n</style>", unsafe_allow_html=True)
+    else:
+        st.warning("style.css not found.")
 
 
 def run_app(client_factory: ClientFactory | None = None) -> None:
-    st.set_page_config(page_title="Continue Better Python", layout="wide")
+    st.set_page_config(page_title="AI Technical Assistant", layout="wide")
     ensure_state()
     inject_css()
     client = get_client(client_factory)
@@ -1395,17 +1183,33 @@ def run_app(client_factory: ClientFactory | None = None) -> None:
         render_header()
         render_notice()
 
-    rail, center, inspector = st.columns([1, 2, 1], gap="large")
+    rail, center, inspector = st.columns([1.4, 2.0, 1.4], gap="small")
     with rail:
         with st.container(key="left_panel", border=False):
             render_session_panel(client)
     with center:
         with st.container(key="center_panel", border=False):
-            render_chat_panel()
+            stream_target = render_chat_panel()
     with inspector:
         with st.container(key="right_panel", border=False):
             render_status_panels(client)
-    render_chat_composer(client)
+
+    if st.session_state.get("pending_approval_decision"):
+        pending_approval = st.session_state.pop("pending_approval_decision")
+        respond_to_approval(client, pending_approval["approval_id"], pending_approval["decision"], stream_target)
+        st.rerun()
+
+    if st.session_state.get("pending_clarification_answer") and st.session_state.get("pending_clarification"):
+        answer = st.session_state.pop("pending_clarification_answer")
+        clarification_id = st.session_state["pending_clarification"]["clarification_id"]
+        respond_to_clarification(client, clarification_id, answer, stream_target)
+        st.rerun()
+        
+    # Open clarification dialog if needed
+    if st.session_state.get("pending_clarification") and not st.session_state.get("pending_clarification_answer"):
+        clarification_dialog(client)
+
+    render_chat_composer(client, stream_target)
     render_floating_tool_access()
 
 

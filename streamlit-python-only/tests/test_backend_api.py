@@ -7,9 +7,9 @@ import httpx
 import mongomock
 from fastapi.testclient import TestClient
 
-from continue_better_py.backend_app import _resolve_in_allowed_roots, create_backend_app
-from continue_better_py.matrix import MatrixService
-from continue_better_py.store import MongoStore
+from streamlit_python_only.backend_app import _resolve_in_allowed_roots, create_backend_app
+from streamlit_python_only.matrix import MatrixService
+from streamlit_python_only.store import MongoStore
 
 
 def parse_sse_payloads(text: str) -> list[dict]:
@@ -27,7 +27,7 @@ def encode_sse(events: list[dict]) -> str:
 def build_test_client(tmp_path, handler, matrix_service: MatrixService | None = None) -> tuple[TestClient, MongoStore]:
     store = MongoStore(
         client=mongomock.MongoClient(),
-        database_name="continue_better_python_backend_test",
+        database_name="streamlit_python_only_backend_test",
         artifacts_root=tmp_path,
     )
     workspace = tmp_path.joinpath("workspace")
@@ -218,7 +218,21 @@ def test_backend_proxies_rag_routes(tmp_path):
                 return httpx.Response(200, json={"config": {"enabled": True, "thresholdPct": 0.9, "tokenBudget": 12000}, "summary": {"text": "", "entryCount": 0, "estimatedTokens": 0}, "entries": []})
             return httpx.Response(200, json={"config": {"enabled": False, "thresholdPct": 0.75, "tokenBudget": 4000}, "summary": {"text": "", "entryCount": 0, "estimatedTokens": 0}, "entries": []})
         if request.url.path == "/v1/rag/lookup":
-            return httpx.Response(200, json={"status": "ok", "query": "phase 4", "hits": [{"snippet": "Phase 4 covers RAG parity.", "citation": {"path": "notes.txt"}}]})
+            return httpx.Response(
+                200,
+                json={
+                    "status": "ok",
+                    "query": "phase 4",
+                    "hits": [{"snippet": "Phase 4 covers RAG parity.", "citation": {"path": "notes.txt"}, "matchedTerms": ["phase", "4"]}],
+                    "meta": {
+                        "strongHitCount": 1,
+                        "weakHitCount": 0,
+                        "topDocumentPaths": ["notes.txt"],
+                        "queryTokens": ["phase", "4"],
+                        "followupContextUsed": False,
+                    },
+                },
+            )
         if request.url.path == "/v1/capabilities":
             return httpx.Response(200, json={"tools": {"files": True, "rag": True}})
         if request.url.path == "/v1/models":
@@ -260,6 +274,159 @@ def test_backend_proxies_rag_routes(tmp_path):
     lookup = client.post("/v1/rag/lookup", json={"question": "phase 4", "session_id": session_id})
     assert lookup.status_code == 200
     assert lookup.json()["hits"][0]["citation"]["path"] == "notes.txt"
+    assert lookup.json()["meta"]["strongHitCount"] == 1
+    assert lookup.json()["meta"]["topDocumentPaths"] == ["notes.txt"]
+
+
+def test_backend_proxies_provider_capabilities_payloads(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/capabilities":
+            return httpx.Response(
+                200,
+                json={
+                    "interactiveTerminal": True,
+                    "providerMode": "textual_replay",
+                    "providerCapabilities": {
+                        "supportsNativeTools": False,
+                        "supportsTextualReplay": True,
+                        "supportsMultiToolTurn": False,
+                        "maxToolCallsPerTurn": 1,
+                        "configSource": "env",
+                    },
+                },
+            )
+        if request.url.path == "/v1/models":
+            return httpx.Response(
+                200,
+                json={
+                    "models": [{"id": "thales-model"}],
+                    "defaultModel": "thales-model",
+                    "providerMode": "textual_replay",
+                    "providerCapabilities": {
+                        "supportsNativeTools": False,
+                        "supportsTextualReplay": True,
+                        "supportsMultiToolTurn": False,
+                        "maxToolCallsPerTurn": 1,
+                        "configSource": "env",
+                    },
+                },
+            )
+        raise AssertionError(f"Unexpected path: {request.url.path}")
+
+    client, _store = build_test_client(tmp_path, handler)
+    capabilities = client.get("/v1/capabilities")
+    assert capabilities.status_code == 200
+    assert capabilities.json()["providerCapabilities"]["maxToolCallsPerTurn"] == 1
+
+    models = client.get("/v1/models")
+    assert models.status_code == 200
+    assert models.json()["providerCapabilities"]["supportsTextualReplay"] is True
+
+
+def test_backend_chat_stream_relays_runtime_contract_diagnostics(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/chat/stream":
+            body = encode_sse(
+                [
+                    {"type": "run_state", "runId": "run-contract", "state": "running", "timestamp": "2026-03-11T12:00:00+00:00"},
+                    {"type": "run_diagnostic", "runId": "run-contract", "code": "final_contract_detected", "level": "info", "message": "Final answer contract detected.", "timestamp": "2026-03-11T12:00:01+00:00"},
+                    {"type": "run_diagnostic", "runId": "run-contract", "code": "final_contract_repair_requested", "level": "warn", "message": "Repair requested.", "timestamp": "2026-03-11T12:00:02+00:00"},
+                    {"type": "token", "token": "Bonjour"},
+                    {"type": "run_state", "runId": "run-contract", "state": "completed", "timestamp": "2026-03-11T12:00:03+00:00"},
+                    {"type": "done"},
+                ]
+            )
+            return httpx.Response(200, text=body, headers={"content-type": "text/event-stream"})
+        if request.url.path == "/v1/capabilities":
+            return httpx.Response(200, json={"tools": {"files": True}})
+        if request.url.path == "/v1/models":
+            return httpx.Response(200, json={"models": [{"id": "gemini"}]})
+        raise AssertionError(f"Unexpected path: {request.url.path}")
+
+    client, store = build_test_client(tmp_path, handler)
+    session_id = client.post("/v1/sessions", json={"title": "Contract Session"}).json()["session_id"]
+    response = client.post(
+        "/v1/chat/stream",
+        json={"session_id": session_id, "message": "Réponds en français", "run_id": "run-contract", "allow_writes": False},
+    )
+    assert response.status_code == 200
+    events = parse_sse_payloads(response.text)
+    assert any(event["type"] == "run_diagnostic" and event["code"] == "final_contract_detected" for event in events)
+    assert any(event["type"] == "run_diagnostic" and event["code"] == "final_contract_repair_requested" for event in events)
+    assert store.get_run("run-contract")["meta"]["state"] == "completed"
+
+
+def test_backend_chat_stream_relays_goal_gap_diagnostics(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/chat/stream":
+            body = encode_sse(
+                [
+                    {"type": "run_state", "runId": "run-gap", "state": "running", "timestamp": "2026-03-11T12:00:00+00:00"},
+                    {
+                        "type": "run_diagnostic",
+                        "runId": "run-gap",
+                        "code": "goal_gap_summary",
+                        "level": "info",
+                        "message": "Goal gap summary captured.",
+                        "data": {"missingEvidence": ["file:matrix_fixtures/product_identity.md"], "missingFacts": [], "answerDefects": [], "canGatherMoreEvidence": True, "isComplete": False},
+                        "timestamp": "2026-03-11T12:00:01+00:00",
+                    },
+                    {"type": "token", "token": "Partial answer"},
+                    {"type": "run_state", "runId": "run-gap", "state": "completed", "timestamp": "2026-03-11T12:00:03+00:00"},
+                    {"type": "done"},
+                ]
+            )
+            return httpx.Response(200, text=body, headers={"content-type": "text/event-stream"})
+        if request.url.path == "/v1/capabilities":
+            return httpx.Response(200, json={"tools": {"files": True}})
+        if request.url.path == "/v1/models":
+            return httpx.Response(200, json={"models": [{"id": "gemini"}]})
+        raise AssertionError(f"Unexpected path: {request.url.path}")
+
+    client, store = build_test_client(tmp_path, handler)
+    session_id = client.post("/v1/sessions", json={"title": "Gap Session"}).json()["session_id"]
+    response = client.post(
+        "/v1/chat/stream",
+        json={"session_id": session_id, "message": "Read two files then answer", "run_id": "run-gap", "allow_writes": False},
+    )
+    assert response.status_code == 200
+    events = parse_sse_payloads(response.text)
+    gap = next(event for event in events if event["type"] == "run_diagnostic" and event["code"] == "goal_gap_summary")
+    assert "file:matrix_fixtures/product_identity.md" in gap["data"]["missingEvidence"]
+    assert store.get_run("run-gap")["meta"]["state"] == "completed"
+
+
+def test_backend_chat_stream_relays_rag_diagnostics(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/chat/stream":
+            body = encode_sse(
+                [
+                    {"type": "run_state", "runId": "run-rag", "state": "running", "timestamp": "2026-03-11T12:00:00+00:00"},
+                    {"type": "run_diagnostic", "runId": "run-rag", "code": "rag_lookup_no_strong_hits", "level": "warn", "message": "RAG lookup returned only weak hits.", "timestamp": "2026-03-11T12:00:01+00:00"},
+                    {"type": "run_diagnostic", "runId": "run-rag", "code": "rag_grounding_weak", "level": "warn", "message": "Final answer is not clearly grounded in the retrieved RAG evidence.", "timestamp": "2026-03-11T12:00:02+00:00"},
+                    {"type": "token", "token": "I couldn't find enough reliable information."},
+                    {"type": "run_state", "runId": "run-rag", "state": "completed", "timestamp": "2026-03-11T12:00:03+00:00"},
+                    {"type": "done"},
+                ]
+            )
+            return httpx.Response(200, text=body, headers={"content-type": "text/event-stream"})
+        if request.url.path == "/v1/capabilities":
+            return httpx.Response(200, json={"tools": {"files": True, "rag": True}})
+        if request.url.path == "/v1/models":
+            return httpx.Response(200, json={"models": [{"id": "gemini"}]})
+        raise AssertionError(f"Unexpected path: {request.url.path}")
+
+    client, store = build_test_client(tmp_path, handler)
+    session_id = client.post("/v1/sessions", json={"title": "RAG Diagnostics"}).json()["session_id"]
+    response = client.post(
+        "/v1/chat/stream",
+        json={"session_id": session_id, "message": "What is the Phase 4 status?", "run_id": "run-rag", "allow_writes": False},
+    )
+    assert response.status_code == 200
+    events = parse_sse_payloads(response.text)
+    assert any(event["type"] == "run_diagnostic" and event["code"] == "rag_lookup_no_strong_hits" for event in events)
+    assert any(event["type"] == "run_diagnostic" and event["code"] == "rag_grounding_weak" for event in events)
+    assert store.get_run("run-rag")["meta"]["state"] == "completed"
 
 
 def test_backend_exposes_matrix_routes(tmp_path):
@@ -285,7 +452,7 @@ def test_backend_exposes_matrix_routes(tmp_path):
 
     store = MongoStore(
         client=mongomock.MongoClient(),
-        database_name="continue_better_python_backend_matrix_test",
+        database_name="streamlit_python_only_backend_matrix_test",
         artifacts_root=tmp_path,
     )
     matrix_transport = httpx.MockTransport(handler)
@@ -306,7 +473,7 @@ def test_backend_exposes_matrix_routes(tmp_path):
         "/v1/matrix/jobs",
         json={
             "models": ["gemini"],
-            "scenario_ids": ["read_file_phase_status"],
+            "variant_groups": ["exact_output_after_tool"],
             "profiles": ["baseline_current"],
             "surfaces": ["backend_relay"],
         },
@@ -332,11 +499,13 @@ def test_backend_exposes_matrix_routes(tmp_path):
 
     report = client.get(f"/v1/matrix/reports/{report_id}")
     assert report.status_code == 200
-    assert report.json()["report"]["results"][0]["summary"]["finalText"] == "AURORA_PHASE4"
+    body = report.json()["report"]
+    assert body["aggregate"]["trendSignals"]
+    assert all(row["variantGroup"] == "exact_output_after_tool" for row in body["results"])
 
     compare = client.get("/v1/matrix/compare", params={"current_report_id": report_id, "baseline_report_id": report_id})
     assert compare.status_code == 200
-    assert compare.json()["comparison"]["summary"]["currentRuns"] == 1
+    assert compare.json()["comparison"]["summary"]["currentRuns"] == len(body["results"])
 
 
 def test_backend_proxies_terminal_routes(tmp_path):
@@ -364,10 +533,57 @@ def test_backend_proxies_terminal_routes(tmp_path):
                     ],
                 },
             )
+        if request.url.path == "/v1/terminals" and request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "terminals": [
+                        {
+                            "terminalId": "term-1",
+                            "runId": "run-terminal-1",
+                            "sessionId": "s1",
+                            "cwd": str(tmp_path),
+                            "shell": "/bin/zsh",
+                            "owner": "user",
+                            "alive": True,
+                            "createdAt": "2026-03-11T12:30:00+00:00",
+                            "updatedAt": "2026-03-11T12:30:00+00:00",
+                            "tail": "",
+                            "backend": "pty",
+                        }
+                    ],
+                    "activeTerminalId": "term-1",
+                },
+            )
         if request.url.path == "/v1/terminals/term-1" and request.method == "GET":
             return httpx.Response(200, json={"terminal": {"terminalId": "term-1", "tail": str(tmp_path), "alive": True, "owner": "user"}})
+        if request.url.path == "/v1/terminals/term-1/snapshot" and request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "snapshot": {"terminalId": "term-1", "tail": "backend-snapshot", "alive": True, "owner": "user"},
+                    "terminal": {"terminalId": "term-1", "tail": "backend-snapshot", "alive": True, "owner": "user"},
+                },
+            )
+        if request.url.path == "/v1/terminals/term-1/wait_for_output" and request.method == "POST":
+            return httpx.Response(
+                200,
+                json={
+                    "matched": True,
+                    "tail": "backend-snapshot",
+                    "terminal": {"terminalId": "term-1", "tail": "backend-snapshot", "alive": True, "owner": "user"},
+                },
+            )
+        if request.url.path == "/v1/terminals/resolve" and request.method == "POST":
+            return httpx.Response(200, json={"terminalId": "term-1", "strategy": "active_run_terminal", "requestedTerminalId": None})
         if request.url.path == "/v1/terminals/term-1/write" and request.method == "POST":
-            return httpx.Response(200, json={"terminal": {"terminalId": "term-1", "tail": str(tmp_path), "alive": True, "owner": "user"}, "events": []})
+            return httpx.Response(
+                200,
+                json={
+                    "terminal": {"terminalId": "term-1", "tail": str(tmp_path), "alive": True, "owner": "user"},
+                    "events": [{"type": "terminal_input", "runId": "run-terminal-1", "terminalId": "term-1", "source": "user", "inputKind": "text", "data": "pwd\n", "timestamp": "2026-03-11T12:30:00+00:00"}],
+                },
+            )
         if request.url.path == "/v1/terminals/term-1/control" and request.method == "POST":
             return httpx.Response(
                 200,
@@ -381,7 +597,18 @@ def test_backend_proxies_terminal_routes(tmp_path):
                 200,
                 json={
                     "terminal": {"terminalId": "term-1", "alive": False, "owner": "user"},
-                    "events": [{"type": "terminal_control_changed", "runId": "run-terminal-1", "terminalId": "term-1", "owner": "user", "timestamp": "2026-03-11T12:30:02+00:00"}],
+                    "events": [
+                        {"type": "terminal_closed", "runId": "run-terminal-1", "terminalId": "term-1", "reason": "closed", "timestamp": "2026-03-11T12:30:02+00:00"},
+                        {"type": "terminal_control_changed", "runId": "run-terminal-1", "terminalId": "term-1", "owner": "user", "timestamp": "2026-03-11T12:30:02+00:00"},
+                    ],
+                },
+            )
+        if request.url.path == "/v1/runs/run-terminal-1/terminals/close" and request.method == "POST":
+            return httpx.Response(
+                200,
+                json={
+                    "terminals": [{"terminalId": "term-1", "alive": False, "owner": "user"}],
+                    "events": [{"type": "terminal_closed", "runId": "run-terminal-1", "terminalId": "term-1", "reason": "cleanup", "timestamp": "2026-03-11T12:30:03+00:00"}],
                 },
             )
         if request.url.path == "/v1/capabilities":
@@ -396,14 +623,30 @@ def test_backend_proxies_terminal_routes(tmp_path):
 
     created = client.post("/v1/terminals", json={"session_id": session_id, "run_id": "run-terminal-1", "workspace_root": str(tmp_path), "owner": "user"})
     assert created.status_code == 200
+    listed = client.get("/v1/terminals", params={"run_id": "run-terminal-1", "alive_only": "true"})
+    assert listed.status_code == 200
+    assert listed.json()["activeTerminalId"] == "term-1"
     fetched = client.get("/v1/terminals/term-1")
     assert fetched.status_code == 200
+    resolved = client.post("/v1/terminals/resolve", json={"run_id": "run-terminal-1", "session_id": session_id})
+    assert resolved.status_code == 200
+    assert resolved.json()["terminalId"] == "term-1"
+    snapshot = client.get("/v1/terminals/term-1/snapshot")
+    assert snapshot.status_code == 200
+    assert snapshot.json()["snapshot"]["tail"] == "backend-snapshot"
     wrote = client.post("/v1/terminals/term-1/write", json={"data": "pwd\n", "source": "user"})
     assert wrote.status_code == 200
+    assert wrote.json()["events"][0]["type"] == "terminal_input"
+    waited = client.post("/v1/terminals/term-1/wait_for_output", json={"pattern": "backend-snapshot", "timeout_ms": 2500, "regex": False})
+    assert waited.status_code == 200
+    assert waited.json()["matched"] is True
     control = client.post("/v1/terminals/term-1/control", json={"owner": "agent", "reason": "test"})
     assert control.status_code == 200
     closed = client.post("/v1/terminals/term-1/close")
     assert closed.status_code == 200
+    assert any(event["type"] == "terminal_closed" for event in closed.json()["events"])
+    close_run = client.post("/v1/runs/run-terminal-1/terminals/close", params={"reason": "cleanup"})
+    assert close_run.status_code == 200
 
     run = client.get("/v1/runs/run-terminal-1/events").json()["run"]
     assert "term-1" in run["meta"]["terminal_ids"]

@@ -1,0 +1,347 @@
+:root {
+    --glass-surface: rgba(28, 34, 42, 0.35);
+}
+
+.stApp {
+    background:
+        radial-gradient(circle at 15% 15%, rgba(15, 30, 60, 0.4), transparent 45%),
+        radial-gradient(circle at 85% 85%, rgba(10, 20, 45, 0.3), transparent 50%),
+        linear-gradient(180deg, #030508 0%, #050810 100%);
+}
+
+.stApp::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.06;
+    background-image:
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 2px),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 2px);
+}
+
+/* Hide standard Streamlit header/sidebar elements */
+[data-testid="stSidebar"],
+[data-testid="collapsedControl"],
+header[data-testid="stHeader"] {
+    display: none !important;
+}
+
+/* Main container configuration */
+.block-container {
+    padding-top: 0.7rem;
+    padding-bottom: 0;
+    max-width: 100% !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+    position: relative;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Glass panels */
+.st-key-left_panel,
+.st-key-center_panel,
+.st-key-right_panel {
+    position: relative;
+    background: var(--glass-surface);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 12px;
+    padding: 0.65rem 0.7rem 0.75rem 0.7rem;
+    box-shadow:
+        0 20px 40px rgba(2, 6, 23, 0.28),
+        0 8px 18px rgba(2, 6, 23, 0.16);
+    backdrop-filter: blur(16px);
+    height: calc(100vh - 10rem) !important;
+    max-height: calc(100vh - 10rem) !important;
+    min-height: 0 !important;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.st-key-left_panel {
+    /* Let Streamlit handle the width via columns, just ensure it fills it */
+    width: 100% !important;
+}
+
+.st-key-right_panel {
+    /* Let Streamlit handle the width via columns, just ensure it fills it */
+    width: 100% !important;
+}
+
+.st-key-center_panel {
+    padding-bottom: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Custom scrollbars for panels */
+.st-key-left_panel::-webkit-scrollbar,
+.st-key-center_panel::-webkit-scrollbar,
+.st-key-right_panel::-webkit-scrollbar {
+    width: 4px;
+}
+
+.st-key-left_panel::-webkit-scrollbar-thumb,
+.st-key-center_panel::-webkit-scrollbar-thumb,
+.st-key-right_panel::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 4px;
+}
+
+.st-key-left_panel:hover::-webkit-scrollbar-thumb,
+.st-key-center_panel:hover::-webkit-scrollbar-thumb,
+.st-key-right_panel:hover::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Header shell */
+.st-key-header_shell {
+    position: relative;
+    background: var(--glass-surface);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 12px;
+    padding: 0.05rem 0.62rem 0.05rem 0.62rem;
+    box-shadow:
+        0 20px 40px rgba(2, 6, 23, 0.28),
+        0 8px 18px rgba(2, 6, 23, 0.16);
+    backdrop-filter: blur(16px);
+    margin-bottom: 0.38rem;
+}
+
+.st-key-header_shell [data-testid="stVerticalBlock"] {
+    gap: 0 !important;
+}
+
+.st-key-header_shell [data-testid="stCaptionContainer"] {
+    margin-bottom: -0.01rem !important;
+}
+
+/* Chat Input styling overrides */
+[data-testid="stChatInput"] {
+    position: fixed !important;
+    left: 50% !important;
+    bottom: 1.5rem !important;
+    transform: translateX(-50%) !important;
+    width: min(48vw, 860px) !important;
+    z-index: 9999 !important;
+    background: var(--glass-surface) !important;
+    padding: 0.4rem 0.5rem !important;
+    border-radius: 16px !important;
+    border: 1px solid rgba(148, 163, 184, 0.08) !important;
+    box-shadow:
+        0 20px 40px rgba(2, 6, 23, 0.28),
+        0 8px 18px rgba(2, 6, 23, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(18px) !important;
+    transition: border-color 0.2s !important;
+    display: flex !important;
+}
+
+[data-testid="stChatInput"]:focus-within {
+    border-color: rgba(45, 212, 191, 0.35) !important;
+}
+
+[data-testid="stChatInput"] div,
+[data-testid="stChatInput"] textarea,
+[data-testid="stChatInputTextArea"] {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+[data-testid="stChatMessageAvatar"] {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+[data-testid="stChatMessageAvatar"] svg {
+    display: none !important;
+}
+
+/* Chat message alignment fixes */
+[data-testid="stChatMessage"] > img {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+[data-testid="stChatMessage"] {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    margin-bottom: 1.5rem !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    gap: 0 !important;
+    margin-left: 0 !important;
+}
+
+[data-testid="stChatMessage"]:not(:has(.user-msg-marker)) {
+    margin-left: 0.75rem !important;
+    max-width: calc(100% - 0.75rem) !important;
+}
+
+[data-testid="stChatMessage"] > div:first-child {
+    display: none !important;
+}
+
+[data-testid="stChatMessageContent"] {
+    width: 100% !important;
+    flex: 1 1 auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow-wrap: anywhere !important;
+}
+
+/* User message specific styling */
+[data-testid="stChatMessage"]:has(.user-msg-marker) {
+    background: rgba(45, 212, 191, 0.08) !important;
+    border: 1px solid rgba(45, 212, 191, 0.2) !important;
+    border-radius: 16px !important;
+    border-bottom-right-radius: 4px !important;
+    border-bottom-left-radius: 16px !important;
+    margin-left: auto !important;
+    margin-right: 1rem !important;
+    padding: 0.8rem 1.2rem !important;
+    width: fit-content !important;
+    max-width: 85% !important;
+    transform: none !important;
+}
+
+[data-testid="stChatMessage"]:has(.user-msg-marker) [data-testid="stChatMessageContent"] {
+    width: fit-content !important;
+    flex: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    margin-left: 0 !important;
+}
+
+.user-msg-marker {
+    display: none;
+}
+
+/* Floating tools container */
+.st-key-floating_tools {
+    position: fixed;
+    left: calc(50% + min(24vw, 430px) + 1rem);
+    bottom: 1.5rem;
+    width: min(22rem, calc(100vw - (50% + min(24vw, 430px) + 2rem)));
+    z-index: 999999 !important;
+    pointer-events: auto !important;
+}
+
+/* Ensure the chat input wrapper doesn't block the tools */
+[data-testid="stBottomBlockContainer"] {
+    z-index: 9998 !important;
+    pointer-events: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+[data-testid="stBottomBlockContainer"]::before {
+    display: none !important;
+}
+
+/* Re-enable clicks for the actual input field inside the container */
+[data-testid="stBottomBlockContainer"] [data-testid="stChatInput"] {
+    pointer-events: auto !important;
+}
+
+.st-key-floating_tools > div {
+    background: var(--glass-surface);
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    box-shadow:
+        0 20px 40px rgba(2, 6, 23, 0.28),
+        0 8px 18px rgba(2, 6, 23, 0.16);
+    backdrop-filter: blur(18px);
+    padding: 0.35rem;
+}
+
+.st-key-floating_tools .stButton > button {
+    min-height: 2rem;
+    border-radius: 8px;
+    font-size: 0.75rem !important;
+    padding: 0.1rem 0.15rem !important;
+    white-space: nowrap !important;
+}
+
+/* Typography and generic elements */
+h1, h2, h3, h4, label, [data-testid="stMetricLabel"] {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+/* Inspector panel buttons */
+.st-key-right_panel [data-testid="stHorizontalBlock"] .stButton > button {
+    margin-bottom: 0.2rem !important; /* Reduced margin between rows */
+    min-height: 1.8rem;
+    font-size: 0.65rem !important;
+    padding: 0.1rem 0.2rem !important;
+    white-space: nowrap !important;
+}
+
+.st-key-right_panel [data-testid="stHorizontalBlock"] {
+    margin-bottom: -0.5rem !important; /* Reduce vertical space between rows */
+}
+
+/* Global Font Override */
+.stApp, .stApp p, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, .stApp li, .stApp button, .stApp input, .stApp textarea, .stApp select {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+[data-testid="stIconMaterial"] {
+    font-family: "Material Symbols Rounded", "Material Symbols Sharp", "Material Symbols Outlined" !important;
+    font-weight: 400 !important;
+    font-style: normal !important;
+    line-height: 1 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    white-space: nowrap !important;
+    word-wrap: normal !important;
+    direction: ltr !important;
+}
+
+[data-testid="stCodeBlock"] pre, code, .stCodeBlock {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
+
+.cb-chat-bottom-spacer {
+    height: 18rem;
+    flex-shrink: 0;
+    width: 100%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    [data-testid="stChatInput"] {
+        width: min(64vw, 900px) !important;
+    }
+    .st-key-floating_tools {
+        left: calc(50% + min(32vw, 450px) - 7rem);
+        bottom: 5.8rem;
+        width: 14rem;
+    }
+}
+
+@media (max-width: 900px) {
+    .st-key-floating_tools {
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 5.9rem;
+        width: min(88vw, 22rem);
+    }
+    [data-testid="stChatInput"] {
+        width: min(88vw, 900px) !important;
+    }
+}
