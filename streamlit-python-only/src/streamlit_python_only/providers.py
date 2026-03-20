@@ -63,7 +63,10 @@ def normalize_provider_name(provider: str) -> str:
 
 
 def infer_mode(profile: ProviderProfile | None, base_url: str, provider: str, explicit_mode: str | None) -> str:
-    mode = (explicit_mode or profile.mode if profile else explicit_mode or "auto").strip().lower()
+    explicit = str(explicit_mode or "").strip().lower()
+    profile_mode = str(profile.mode or "auto").strip().lower() if profile else "auto"
+    # Treat explicit "auto" as "no override" so profile mode can still drive behavior.
+    mode = explicit if explicit and explicit != "auto" else profile_mode
     if mode in {"native", "textual_replay"}:
         return mode
     if provider == "thales" or is_thales_url(base_url):

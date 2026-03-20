@@ -41,6 +41,29 @@ def token(value: str) -> dict:
     return {"type": "token", "token": value}
 
 
+def assistant_progress(run_id: str, step_index: int, summary: str, source: str = "runtime") -> dict:
+    return {
+        "type": "assistant_progress",
+        "runId": run_id,
+        "stepIndex": step_index,
+        "summary": summary,
+        "source": source,
+        "timestamp": now_iso(),
+    }
+
+
+def run_step(run_id: str, step_index: int, kind: str, status: str, summary: str) -> dict:
+    return {
+        "type": "run_step",
+        "runId": run_id,
+        "stepIndex": step_index,
+        "kind": kind,
+        "status": status,
+        "summary": summary,
+        "timestamp": now_iso(),
+    }
+
+
 def approval_required(run_id: str, approval_id: str, name: str, arguments: str, risk_level: str) -> dict:
     return {
         "type": "approval_required",

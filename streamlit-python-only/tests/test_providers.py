@@ -38,6 +38,18 @@ def test_infer_mode_prefers_textual_replay_for_thales():
     assert infer_mode(profile, profile.base_url, profile.provider, "auto") == "textual_replay"
 
 
+def test_infer_mode_honors_profile_textual_replay_when_explicit_auto():
+    profile = ProviderProfile(
+        provider="openrouter",
+        label="OpenRouter textual replay profile",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="LLM_API_KEY",
+        model="google/gemini-2.5-flash-lite-preview-09-2025",
+        mode="textual_replay",
+    )
+    assert infer_mode(profile, profile.base_url, profile.provider, "auto") == "textual_replay"
+
+
 def test_simplify_schema_for_thales_flattens_nested_types():
     schema = {
         "type": "object",

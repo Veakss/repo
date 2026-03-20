@@ -12,6 +12,7 @@ from typing import Any, Callable
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
 from streamlit_python_only.events import (
+    assistant_progress,
     approval_decision,
     approval_required,
     clarification_required,
@@ -19,6 +20,7 @@ from streamlit_python_only.events import (
     error_event,
     run_phase,
     run_diagnostic,
+    run_step as run_step_event,
     run_state,
     terminal_error,
     terminal_exit,
@@ -53,10 +55,25 @@ class RuntimeDependencies:
     rag_service: RagService | None = None
 
 def split_for_streaming(text: str) -> list[str]:
-    parts = text.split()
+    value = str(text or "")
+    if value == "":
+        return [value]
+    # Preserve exact whitespace/newlines so streamed rendering keeps the final layout.
+    parts = re.findall(r"\S+|\s+", value)
     if not parts:
-        return [text]
-    return [f"{part} " for part in parts]
+        return [value]
+    chunks: list[str] = []
+    current = ""
+    max_chunk_size = 120
+    for part in parts:
+        if current and len(current) + len(part) > max_chunk_size:
+            chunks.append(current)
+            current = part
+        else:
+            current += part
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 URL_PATTERN = re.compile(r"https?://[^\s)>]+", flags=re.IGNORECASE)
@@ -151,6 +168,8 @@ DIRECTORY_PHRASE_PATTERN = re.compile(r"\b(?:inspect|list|check|explore)\s+(?:th
 SEQUENTIAL_CUE_PATTERN = re.compile(r"\b(?:then|now|after that|and now|next)\b", flags=re.IGNORECASE)
 MAX_NO_PROGRESS_TURNS = 2
 MAX_REPAIR_ATTEMPTS = 3
+# Hard timeout for a single graph execution to avoid zombie runs stuck in execute phase.
+MAX_GRAPH_INVOKE_TIMEOUT_S = 100.0
 FAILURE_CODE_SET = {
     "missing_evidence",
     "verification_failed",
@@ -525,26 +544,62 @@ def normalize_final_markdown(text: str) -> str:
     cleaned = str(text or "").replace("(empty response)", "").strip()
     if not cleaned:
         return ""
+    cleaned = cleaned.replace("\r\n", "\n")
+
+    def _format_body(body_text: str) -> str:
+        body = normalize_whitespace(body_text)
+        if not body:
+            return ""
+        # Put numbered lists on separate lines when the model outputs everything on one line.
+        body = re.sub(r"(?<!\n)\s+(?=\d+\.\s)", "\n", body)
+        # Put bullet items on separate lines when flattened as " - item - item".
+        body = re.sub(r"(?<!\n)\s+-\s+", "\n- ", body)
+        # Add spacing before a new section introduced by a trailing colon and list-like content.
+        body = re.sub(r":\s*(?=\d+\.\s)", ":\n", body)
+        body = re.sub(r":\s*(?=-\s)", ":\n", body)
+        # Add a paragraph break before common recap/source sections for readability.
+        body = re.sub(r"\s+(?=(Le contenu du fichier|The content of the file)\b)", "\n\n", body)
+        body = re.sub(r"\s+(?=(R[ée]sum[ée]|Summary)\b)", "\n\n", body)
+        return body.strip()
+
     split = re.split(r"(?i)\bSources?\s*:\s*", cleaned, maxsplit=1)
     if len(split) != 2:
-        return cleaned
-    body, raw_sources = split[0].strip(), split[1].strip()
+        return _format_body(cleaned)
+    body, raw_sources = _format_body(split[0].strip()), split[1].strip()
+    # Handle malformed patterns like "answer [ Sources: ... ]" by trimming bracket artifacts.
+    body = re.sub(r"\s*\[$", "", body).strip()
+    raw_sources = raw_sources.strip()
+    if raw_sources.startswith("[") and raw_sources.endswith("]."):
+        raw_sources = raw_sources[1:-2].strip()
+    elif raw_sources.startswith("[") and raw_sources.endswith("]"):
+        raw_sources = raw_sources[1:-1].strip()
     if not raw_sources:
         return body
     if re.search(r"(?m)^\s*[-*]\s+", raw_sources):
         source_items = [line.strip() for line in raw_sources.splitlines() if line.strip()]
+        if len(source_items) == 1 and re.search(r"\s+-\s+\d+\.\s+", source_items[0]):
+            source_items = [part.strip() for part in re.split(r"\s+-\s+(?=\d+\.\s+)", source_items[0]) if part.strip()]
     else:
-        parts = [part.strip() for part in re.split(r"\s+-\s+", raw_sources) if part.strip()]
+        if re.search(r"\b\d+\.\s+", raw_sources):
+            parts = [part.strip() for part in re.split(r"\s+-\s+(?=\d+\.\s+)", raw_sources) if part.strip()]
+        elif "," in raw_sources:
+            parts = [part.strip() for part in raw_sources.split(",") if part.strip()]
+        else:
+            parts = [part.strip() for part in re.split(r"\s+-\s+", raw_sources) if part.strip()]
         source_items = [f"- {part}" if not part.startswith(("-", "*")) else part for part in parts]
     compact_items: list[str] = []
     for item in source_items:
         token = item.strip()
         if not token:
             continue
+        if token.startswith("["):
+            token = token[1:].strip()
+        token = re.sub(r"\]+[.\s]*$", "", token).strip()
         if token.startswith("* "):
             token = f"- {token[2:].strip()}"
         if not token.startswith("- "):
             token = f"- {token}"
+        token = re.sub(r"^-\s*(\d+)\.\s*", r"- \1. ", token)
         compact_items.append(token)
     if not compact_items:
         return body
@@ -2116,6 +2171,7 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             "outcome": None,
             "failure": None,
             "_event_cursor": 0,
+            "_step_emit_cursor": 0,
         }
 
     def _ensure_run_trace(self, state: AgentState) -> dict[str, Any]:
@@ -2131,6 +2187,7 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         trace.setdefault("outcome", None)
         trace.setdefault("failure", None)
         trace.setdefault("_event_cursor", 0)
+        trace.setdefault("_step_emit_cursor", 0)
         return trace
 
     def _append_run_trace_step(
@@ -2205,6 +2262,66 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
                         data={"code": code},
                     )
         trace["_event_cursor"] = len(tool_events)
+
+    def _record_progress_message(self, state: AgentState, summary: str, *, source: str = "runtime") -> dict[str, Any] | None:
+        cleaned = normalize_whitespace(summary)
+        if not cleaned:
+            return None
+        if len(cleaned) > 280:
+            cleaned = cleaned[:277].rstrip() + "..."
+        signature = f"{source}:{cleaned.lower()}"
+        if signature == str(state.get("last_progress_hash") or ""):
+            return None
+        progress_messages = list(state.get("progress_messages", []))
+        payload = {
+            "stepIndex": len(self._ensure_run_trace(state).get("steps", [])),
+            "summary": cleaned,
+            "source": source,
+            "timestamp": self._now_iso(),
+        }
+        progress_messages.append(payload)
+        state["progress_messages"] = progress_messages[-40:]
+        state["last_progress_hash"] = signature
+        return payload
+
+    def _progress_summary_from_event(self, event: dict[str, Any]) -> str | None:
+        event_type = str(event.get("type") or "")
+        if event_type == "tool_call":
+            tool_name = str(event.get("name") or "tool")
+            return f"Action en cours: appel de `{tool_name}`."
+        if event_type == "tool_result":
+            tool_name = str(event.get("name") or "tool")
+            ok = bool(event.get("ok"))
+            return f"Action terminée: `{tool_name}` {'réussi' if ok else 'a échoué'}."
+        if event_type == "run_diagnostic":
+            code = str(event.get("code") or "")
+            if code == "goal_gap_summary":
+                return "Vérification: mise à jour du gap objectif/réalisation."
+            if code in {"task_completion_unverified", "verify_guardrail_repair"}:
+                return "Vérification: le run continue pour fermer le gap."
+        return None
+
+    def _collect_new_run_step_events(self, state: AgentState) -> list[dict[str, Any]]:
+        trace = self._ensure_run_trace(state)
+        steps = trace.get("steps", [])
+        if not isinstance(steps, list):
+            return []
+        cursor = int(trace.get("_step_emit_cursor", 0) or 0)
+        if cursor >= len(steps):
+            return []
+        emitted: list[dict[str, Any]] = []
+        for step in steps[cursor:]:
+            emitted.append(
+                run_step_event(
+                    str(state.get("run_id") or ""),
+                    int(step.get("index") or 0),
+                    str(step.get("kind") or "step"),
+                    str(step.get("status") or "unknown"),
+                    str(step.get("summary") or ""),
+                )
+            )
+        trace["_step_emit_cursor"] = len(steps)
+        return emitted
 
     def _failure_defaults(self, code: str) -> tuple[str, str]:
         defaults: dict[str, tuple[str, str]] = {
@@ -3108,6 +3225,18 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         self._append_trace_steps_from_tool_events(result)
         for event in result.get("tool_events", []):
             yield event
+            progress_summary = self._progress_summary_from_event(event)
+            if progress_summary:
+                progress = self._record_progress_message(result, progress_summary, source="runtime")
+                if progress:
+                    yield assistant_progress(
+                        run_id,
+                        int(progress.get("stepIndex") or 0),
+                        str(progress.get("summary") or ""),
+                        str(progress.get("source") or "runtime"),
+                    )
+        for step_event in self._collect_new_run_step_events(result):
+            yield step_event
         if result.get("pending_approval"):
             approval = result["pending_approval"]
             failure = self._build_failure_payload(
@@ -3122,6 +3251,8 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
                 data={"code": failure["code"]},
             )
             trace = self._finalize_run_trace(result, outcome="failed", failure=failure)
+            for step_event in self._collect_new_run_step_events(result):
+                yield step_event
             ok, message = self._assert_terminal_consistency(trace)
             if not ok:
                 yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
@@ -3150,6 +3281,8 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
                 data={"code": failure["code"]},
             )
             trace = self._finalize_run_trace(result, outcome="failed", failure=failure)
+            for step_event in self._collect_new_run_step_events(result):
+                yield step_event
             ok, message = self._assert_terminal_consistency(trace)
             if not ok:
                 yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
@@ -3183,6 +3316,20 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
                 "mismatchCodes": [code for code, _message in blocking_violations] if blocking_violations else [code for code, _message in violations],
             },
         )
+        verify_progress = self._record_progress_message(
+            result,
+            "Vérification finale: gap fermé." if verify_ok else "Vérification finale: ajustements encore nécessaires.",
+            source="runtime",
+        )
+        if verify_progress:
+            yield assistant_progress(
+                run_id,
+                int(verify_progress.get("stepIndex") or 0),
+                str(verify_progress.get("summary") or ""),
+                str(verify_progress.get("source") or "runtime"),
+            )
+        for step_event in self._collect_new_run_step_events(result):
+            yield step_event
         yield run_phase(run_id, "finish")
         if verify_ok:
             visible_text = final_text
@@ -3209,6 +3356,8 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             )
             trace = self._finalize_run_trace(result, outcome="failed", failure=failure)
             end_state = "failed"
+        for step_event in self._collect_new_run_step_events(result):
+            yield step_event
         for piece in split_for_streaming(visible_text):
             yield token(piece)
             await asyncio.sleep(0)
@@ -3283,6 +3432,8 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             "control": {},
             "output": {},
             "run_trace": {},
+            "progress_messages": [],
+            "last_progress_hash": None,
         }
         self._refresh_goal_tracking(seeded_state, "")
         self._sync_graph_state_slices(seeded_state)
@@ -3299,6 +3450,8 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         loop = asyncio.get_running_loop()
         result_holder: dict[str, Any] = {}
         completed = asyncio.Event()
+        started_at = loop.time()
+        timed_out = False
 
         def invoke_graph() -> None:
             try:
@@ -3312,19 +3465,31 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         heartbeat_count = 0
         try:
             while True:
+                elapsed = loop.time() - started_at
+                remaining = MAX_GRAPH_INVOKE_TIMEOUT_S - elapsed
+                if remaining <= 0:
+                    timed_out = True
+                    worker.cancel()
+                    raise TimeoutError(
+                        f"Graph execution timed out after {int(elapsed)}s (limit: {int(MAX_GRAPH_INVOKE_TIMEOUT_S)}s)."
+                    )
                 try:
-                    await asyncio.wait_for(completed.wait(), timeout=10.0)
+                    await asyncio.wait_for(completed.wait(), timeout=min(1.0, remaining))
                     break
                 except asyncio.TimeoutError:
-                    heartbeat_count += 1
-                    suffix = f" while {detail}" if detail else ""
-                    yield run_diagnostic(
-                        run_id,
-                        "runtime_heartbeat",
-                        f"Run still in progress{suffix} ({heartbeat_count * 10}s elapsed).",
-                    )
+                    elapsed = loop.time() - started_at
+                    expected_heartbeats = int(elapsed // 10)
+                    if expected_heartbeats > heartbeat_count:
+                        heartbeat_count = expected_heartbeats
+                        suffix = f" while {detail}" if detail else ""
+                        yield run_diagnostic(
+                            run_id,
+                            "runtime_heartbeat",
+                            f"Run still in progress{suffix} ({heartbeat_count * 10}s elapsed).",
+                        )
         finally:
-            await worker
+            if not timed_out:
+                await worker
 
         if "error" in result_holder:
             raise result_holder["error"]
@@ -3385,6 +3550,8 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             "control": state.get("control", {}),
             "output": state.get("output", {}),
             "run_trace": state.get("run_trace", {}),
+            "progress_messages": state.get("progress_messages", []),
+            "last_progress_hash": state.get("last_progress_hash"),
         }
 
     def _deserialize_snapshot(self, payload: dict[str, Any]) -> AgentState:
@@ -3452,6 +3619,8 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             "control": dict(payload.get("control") or {}),
             "output": dict(payload.get("output") or {}),
             "run_trace": dict(payload.get("run_trace") or {}),
+            "progress_messages": payload.get("progress_messages", []),
+            "last_progress_hash": payload.get("last_progress_hash"),
         }
 
     async def stream_chat(self, request: SidecarChatRequest, messages: list[BaseMessage]):

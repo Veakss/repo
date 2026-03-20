@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from typing import Any
 
 
@@ -77,6 +78,102 @@ def flatten_tree(tree: dict[str, Any]) -> list[str]:
     return output
 
 
+def build_persistent_progress_messages(timeline: list[dict[str, Any]], limit: int | None = None) -> list[dict[str, Any]]:
+    grouped: list[dict[str, Any]] = []
+    logical_step = 0
+    seen: set[str] = set()
+    action_start_pattern = re.compile(r"^Action en cours:\s*appel de\s+`?([a-zA-Z0-9_:-]+)`?\.", flags=re.IGNORECASE)
+    action_done_pattern = re.compile(r"^Action terminée:\s*`?([a-zA-Z0-9_:-]+)`?\s+", flags=re.IGNORECASE)
+
+    def _start_group(group_type: str, tool: str | None = None) -> dict[str, Any]:
+        nonlocal logical_step
+        logical_step += 1
+        bucket = {
+            "role": "assistant",
+            "kind": "progress",
+            "_progress_key": f"logical:{logical_step}",
+            "_logical_step": logical_step,
+            "_type": group_type,
+            "_tool": tool,
+            "_lines": [],
+        }
+        grouped.append(bucket)
+        return bucket
+
+    current_group: dict[str, Any] | None = None
+    for event in timeline:
+        if event.get("type") != "assistant_progress":
+            continue
+        run_id = str(event.get("runId") or "")
+        summary = str(event.get("summary") or "").strip()
+        if not summary:
+            continue
+        key = f"{run_id}:{summary.lower()}"
+        if key in seen:
+            continue
+        seen.add(key)
+        start_match = action_start_pattern.match(summary)
+        done_match = action_done_pattern.match(summary)
+        lowered = summary.lower()
+        is_verify = lowered.startswith("vérification")
+
+        if start_match:
+            tool_name = start_match.group(1).strip().lower()
+            current_group = _start_group("tool", tool_name)
+            current_group["_lines"].append(summary)
+            continue
+
+        if done_match:
+            done_tool = done_match.group(1).strip().lower()
+            if current_group and current_group.get("_type") == "tool" and str(current_group.get("_tool") or "") == done_tool:
+                current_group["_lines"].append(summary)
+            else:
+                current_group = _start_group("tool", done_tool)
+                current_group["_lines"].append(summary)
+            continue
+
+        if is_verify:
+            if current_group and current_group.get("_type") == "verify":
+                current_group["_lines"].append(summary)
+            else:
+                current_group = _start_group("verify")
+                current_group["_lines"].append(summary)
+            continue
+
+        if current_group is None:
+            current_group = _start_group("other")
+        current_group["_lines"].append(summary)
+
+    entries: list[dict[str, Any]] = []
+    for bucket in grouped:
+        step_index = int(bucket.get("_logical_step") or 0)
+        lines = [str(item).strip() for item in bucket.get("_lines", []) if str(item).strip()]
+        if not lines:
+            continue
+        markdown_content = "\n".join([f"**Étape {step_index}**", *(f"- {line}" for line in lines)])
+        lines_html = "".join(f"<li>{html.escape(line)}</li>" for line in lines)
+        html_content = (
+            "<div class='cb-progress-step-block'>"
+            f"<div class='cb-progress-step-title'>Étape {step_index}</div>"
+            f"<ul class='cb-progress-step-list'>{lines_html}</ul>"
+            "</div>"
+        )
+        entries.append(
+            {
+                "role": "assistant",
+                "content": markdown_content,
+                "content_html": html_content,
+                "kind": "progress",
+                "_progress_key": bucket["_progress_key"],
+            }
+        )
+    if limit is None:
+        return entries
+    if limit <= 0:
+        return entries
+    return entries[-limit:]
+
+
 def format_event_label(event: dict[str, Any]) -> str:
     event_type = event.get("type", "event")
     if event_type == "run_state":
@@ -94,6 +191,10 @@ def format_event_label(event: dict[str, Any]) -> str:
         return f"Tool call: {event.get('name', 'unknown')}"
     if event_type == "tool_result":
         return f"Tool result: {event.get('name', 'unknown')}"
+    if event_type == "assistant_progress":
+        return f"Assistant progress #{event.get('stepIndex', '?')}"
+    if event_type == "run_step":
+        return f"Run step #{event.get('stepIndex', '?')} ({event.get('kind', 'step')})"
     if event_type == "error":
         return f"Error: {event.get('error', '')}"
     if event_type == "token":
@@ -122,6 +223,12 @@ def format_event_summary(event: dict[str, Any]) -> str:
         return str(event.get("preview") or "")
     if event_type == "run_diagnostic":
         return str(event.get("message") or "")
+    if event_type == "assistant_progress":
+        return str(event.get("summary") or "")
+    if event_type == "run_step":
+        status = str(event.get("status") or "")
+        summary = str(event.get("summary") or "")
+        return f"[{status}] {summary}".strip()
     if event_type in {"error", "terminal_error"}:
         return str(event.get("error") or event.get("message") or "")
     if event_type == "terminal_exit":
@@ -156,6 +263,10 @@ def build_timeline_html(timeline: list[dict[str, Any]], filter_name: str = "all"
             tone = "error"
         elif event.get("type") in {"approval_required", "clarification_required"}:
             tone = "warn"
+        elif event.get("type") == "run_step" and str(event.get("status") or "") in {"failed", "warn", "blocked"}:
+            tone = "warn"
+        elif event.get("type") == "assistant_progress":
+            tone = "default"
         elif event.get("type") == "run_state" and event.get("state") == "completed":
             tone = "success"
         label = html.escape(format_event_label(event))

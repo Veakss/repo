@@ -7,10 +7,19 @@ import mongomock
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
+import streamlit_python_only.runtime as runtime_module
 from streamlit_python_only.providers import ProviderCapabilities
 from streamlit_python_only.rag import RagService
 from streamlit_python_only.run_state import RunStateStore
-from streamlit_python_only.runtime import RuntimeDependencies, RuntimeEngine, build_multi_step_contract, build_runtime_system_prompt, detect_exact_output_target
+from streamlit_python_only.runtime import (
+    RuntimeDependencies,
+    RuntimeEngine,
+    build_multi_step_contract,
+    build_runtime_system_prompt,
+    detect_exact_output_target,
+    normalize_final_markdown,
+    split_for_streaming,
+)
 from streamlit_python_only.schemas import ApprovalDecisionRequest, ClarificationDecisionRequest, ChatMessage, SidecarChatRequest
 from streamlit_python_only.terminal_manager import TerminalManager
 from streamlit_python_only.tool_registry import create_default_tool_registry
@@ -287,6 +296,46 @@ def test_build_multi_step_contract_detects_inputs_and_answer_fields_generally():
     assert {"kind": "directory", "target": "."} in contract.required_inputs
     assert "product_name" in contract.required_answer_fields
     assert "stack" in contract.required_answer_fields
+
+
+def test_normalize_final_markdown_formats_numbered_steps_and_sources_blocks():
+    raw = (
+        "J'ai effectué les étapes suivantes : 1. Recherche web. 2. Écriture fichier. 3. Lecture fichier. "
+        "Le contenu du fichier est : - Point A - Point B Sources: - 1. Models - OpenAI API - 2. Zapier model guide"
+    )
+    formatted = normalize_final_markdown(raw)
+    assert "étapes suivantes :\n1." in formatted.lower()
+    assert "\n2. Écriture fichier." in formatted
+    assert "\n3. Lecture fichier." in formatted
+    assert "Le contenu du fichier est :\n- Point A\n- Point B" in formatted
+    assert "\n\nSources:\n- 1. Models - OpenAI API\n- 2. Zapier model guide" in formatted
+
+
+def test_normalize_final_markdown_keeps_body_when_no_sources_section():
+    raw = "Résumé : 1. Step one. 2. Step two."
+    formatted = normalize_final_markdown(raw)
+    assert "Résumé :\n1. Step one." in formatted
+    assert "\n2. Step two." in formatted
+
+
+def test_normalize_final_markdown_handles_bracketed_rag_sources():
+    raw = (
+        "Le code du jour est : bonbon [\n\n"
+        "Sources:\n\n"
+        "session_memory:entry:933b524e-c255-4eba-8f72-fd2ddfc3f1b6, "
+        "session_memory:entry:c5f5abfe-e20f-40de-84e4-f266691ee884]."
+    )
+    formatted = normalize_final_markdown(raw)
+    assert "bonbon [" not in formatted
+    assert "]." not in formatted
+    assert "Sources:\n- session_memory:entry:933b524e-c255-4eba-8f72-fd2ddfc3f1b6" in formatted
+    assert "- session_memory:entry:c5f5abfe-e20f-40de-84e4-f266691ee884" in formatted
+
+
+def test_split_for_streaming_preserves_newlines_and_spacing():
+    text = "Line 1\nLine 2\n\n- A\n- B"
+    chunks = split_for_streaming(text)
+    assert "".join(chunks) == text
 
 
 def test_runtime_system_prompt_stays_minimal_for_multistep(tmp_path: Path):
@@ -1535,3 +1584,49 @@ async def test_runtime_marks_invalid_final_answer_as_failed(tmp_path: Path):
     run_states = [event for event in events if event.get("type") == "run_state"]
     assert run_states[-1]["state"] == "failed"
     assert done_event.get("runTrace", {}).get("failure", {}).get("code") == "invalid_final_answer"
+
+
+@pytest.mark.anyio
+async def test_runtime_fails_fast_when_graph_invoke_times_out(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    model = FakeModel([AIMessage(content="Delayed answer")], delay_sec=0.2)
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    monkeypatch.setattr(runtime_module, "MAX_GRAPH_INVOKE_TIMEOUT_S", 0.05)
+    request = SidecarChatRequest(
+        sessionId="s1",
+        messages=[ChatMessage(role="user", content="Réponds brièvement.")],
+        workspaceRoot=str(tmp_path),
+        policyProfile="always_allow",
+    )
+    events = [event async for event in runtime.stream_chat(request, [HumanMessage(content=request.messages[0].content)])]
+    run_states = [event for event in events if event.get("type") == "run_state"]
+    done_event = next(event for event in events if event.get("type") == "done")
+    assert run_states[-1]["state"] == "failed"
+    assert done_event.get("runTrace", {}).get("outcome") == "failed"
+    assert done_event.get("runTrace", {}).get("failure", {}).get("code") == "runtime_exception"
+
+
+@pytest.mark.anyio
+async def test_runtime_emits_progress_and_run_step_events(tmp_path: Path):
+    target = tmp_path / "note.txt"
+    target.write_text("hello progress", encoding="utf-8")
+    model = FakeModel(
+        [
+            AIMessage(content="", tool_calls=[{"id": "call-read-1", "name": "read_file", "args": {"path": "note.txt"}}]),
+            AIMessage(content="Le fichier a été lu."),
+        ]
+    )
+    runtime = make_runtime(model, tmp_path, provider_mode="native")
+    request = SidecarChatRequest(
+        sessionId="s1",
+        messages=[ChatMessage(role="user", content="Lis note.txt puis réponds brièvement.")],
+        workspaceRoot=str(tmp_path),
+        policyProfile="always_allow",
+    )
+    events = [event async for event in runtime.stream_chat(request, [HumanMessage(content=request.messages[0].content)])]
+    progress_events = [event for event in events if event.get("type") == "assistant_progress"]
+    step_events = [event for event in events if event.get("type") == "run_step"]
+    assert progress_events
+    assert any("read_file" in str(event.get("summary") or "") for event in progress_events)
+    assert step_events
+    indices = [int(event.get("stepIndex") or 0) for event in step_events]
+    assert indices == sorted(indices)

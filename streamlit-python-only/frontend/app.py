@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import html
 from pathlib import Path
 import sys
 from typing import Any
@@ -15,10 +16,26 @@ if str(CURRENT_DIR) not in sys.path:
 
 try:
     from frontend.api_client import BackendClient
-    from frontend.ui_state import build_terminal_component_html, build_terminal_html, build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
+    from frontend.ui_state import (
+        build_persistent_progress_messages,
+        build_terminal_component_html,
+        build_terminal_html,
+        build_timeline_html,
+        derive_pending_items,
+        flatten_tree,
+        merge_timeline,
+    )
 except ModuleNotFoundError:
     from api_client import BackendClient
-    from ui_state import build_terminal_component_html, build_terminal_html, build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
+    from ui_state import (
+        build_persistent_progress_messages,
+        build_terminal_component_html,
+        build_terminal_html,
+        build_timeline_html,
+        derive_pending_items,
+        flatten_tree,
+        merge_timeline,
+    )
 
 
 ClientFactory = Callable[[], BackendClient]
@@ -59,6 +76,7 @@ def ensure_state() -> None:
         "capabilities": None,
         "models": [],
         "pending_approvals": [],
+        "inflight_approval_ids": [],
         "pending_clarification": None,
         "selected_file": None,
         "file_tree": None,
@@ -133,6 +151,20 @@ def refresh_bootstrap(client: BackendClient) -> None:
         st.session_state["session_id"] = None
 
 
+def _merge_chat_with_progress(messages: list[dict[str, Any]], progress_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not progress_messages:
+        return list(messages)
+    merged = list(messages)
+    insert_at = -1
+    for index in range(len(merged) - 1, -1, -1):
+        if str(merged[index].get("role") or "") == "assistant":
+            insert_at = index
+            break
+    if insert_at < 0:
+        return merged + progress_messages
+    return merged[:insert_at] + progress_messages + merged[insert_at:]
+
+
 def refresh_session_state(client: BackendClient, session_id: str | None) -> None:
     if not session_id:
         st.session_state["messages"] = []
@@ -150,7 +182,8 @@ def refresh_session_state(client: BackendClient, session_id: str | None) -> None
     if active_run_id:
         run = client.get_run(active_run_id)
         timeline = run.get("events", [])
-    st.session_state["messages"] = messages
+    progress_messages = build_persistent_progress_messages(timeline, limit=None)
+    st.session_state["messages"] = _merge_chat_with_progress(messages, progress_messages)
     st.session_state["known_runs"] = runs
     st.session_state["timeline"] = timeline
     st.session_state["active_run_id"] = active_run_id
@@ -277,6 +310,14 @@ def _queue_clarification_answer(answer: str) -> None:
 
 
 def _queue_approval_decision(approval_id: str, decision: str) -> None:
+    inflight_ids = [str(item) for item in st.session_state.get("inflight_approval_ids", [])]
+    if str(approval_id) in inflight_ids:
+        return
+    st.session_state["pending_approvals"] = [
+        approval for approval in st.session_state.get("pending_approvals", []) if str(approval.get("approval_id")) != str(approval_id)
+    ]
+    inflight_ids.append(str(approval_id))
+    st.session_state["inflight_approval_ids"] = inflight_ids
     st.session_state["pending_approval_decision"] = {
         "approval_id": approval_id,
         "decision": decision,
@@ -304,6 +345,25 @@ def _clarification_option_labels(clarification: dict[str, Any]) -> list[str]:
     return labels
 
 
+def _render_assistant_stream(placeholder: Any, assistant_text: str, progress_lines: list[str]) -> None:
+    if assistant_text.strip():
+        placeholder.markdown(assistant_text)
+        return
+    if progress_lines:
+        lines_html = "".join(f"<li>{html.escape(line)}</li>" for line in progress_lines[-8:])
+        placeholder.markdown(
+            (
+                "<div class='cb-progress-live'>"
+                "<div class='cb-progress-live-title'>En cours...</div>"
+                f"<ul class='cb-progress-live-list'>{lines_html}</ul>"
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+        return
+    placeholder.markdown("_Thinking…_")
+
+
 def on_send(prompt: str, client: BackendClient, stream_target: Any) -> None:
     session_id = st.session_state["session_id"]
     if not session_id:
@@ -324,25 +384,36 @@ def on_send(prompt: str, client: BackendClient, stream_target: Any) -> None:
     }
     events: list[dict[str, Any]] = []
     assistant_text = ""
+    progress_lines: list[str] = []
     set_active_panel("Run")
     
     with stream_target.chat_message("assistant", avatar=TRANSPARENT_PIXEL):
         placeholder = st.empty()
-        placeholder.markdown("_Thinking…_")
+        _render_assistant_stream(placeholder, assistant_text, progress_lines)
         try:
             for event in client.stream_chat(payload):
                 events.append(event)
                 if event.get("type") == "token":
                     assistant_text += event.get("token", "")
-                    placeholder.markdown(assistant_text)
+                    _render_assistant_stream(placeholder, assistant_text, progress_lines)
+                elif event.get("type") == "assistant_progress":
+                    summary = str(event.get("summary") or "").strip()
+                    if summary and summary not in progress_lines:
+                        progress_lines.append(summary)
+                    _render_assistant_stream(placeholder, assistant_text, progress_lines)
         except Exception as exc:
             placeholder.markdown("_The run failed before a response was rendered._")
             set_status(error=f"Chat run failed: {exc}")
             raise
-        if not assistant_text:
+        if not assistant_text and not progress_lines:
             placeholder.markdown("_Waiting for a tool result, approval, or clarification._")
     consume_events(client, session_id, events, assistant_text=assistant_text or None)
-    set_status(message="Run completed" if assistant_text else "Run paused for action")
+    if assistant_text:
+        set_status(message="Run completed")
+    elif progress_lines:
+        set_status(message="Run in progress")
+    else:
+        set_status(message="Run paused for action")
 
 
 def respond_to_approval(client: BackendClient, approval_id: str, decision: str, stream_target: Any) -> None:
@@ -352,20 +423,36 @@ def respond_to_approval(client: BackendClient, approval_id: str, decision: str, 
 
     events = []
     assistant_text = ""
+    progress_lines: list[str] = []
     with stream_target.chat_message("assistant", avatar=TRANSPARENT_PIXEL):
         placeholder = st.empty()
-        placeholder.markdown("_Resuming run…_")
+        _render_assistant_stream(placeholder, assistant_text, progress_lines)
         try:
             for event in client.stream_approval(approval_id, decision):
                 events.append(event)
                 if event.get("type") == "token":
                     assistant_text += event.get("token", "")
-                    placeholder.markdown(assistant_text)
+                    _render_assistant_stream(placeholder, assistant_text, progress_lines)
+                elif event.get("type") == "assistant_progress":
+                    summary = str(event.get("summary") or "").strip()
+                    if summary and summary not in progress_lines:
+                        progress_lines.append(summary)
+                    _render_assistant_stream(placeholder, assistant_text, progress_lines)
         except Exception as exc:
-            placeholder.markdown("_The run failed before a response was rendered._")
-            set_status(error=f"Approval run failed: {exc}")
-            raise
-        if not assistant_text:
+            message = str(exc)
+            if "Approval not found" in message or "404" in message:
+                placeholder.markdown("_Approval already processed. Refreshing state._")
+                refresh_session_state(client, session_id)
+                set_status(message="Approval already processed")
+            else:
+                placeholder.markdown("_The run failed before a response was rendered._")
+                set_status(error=f"Approval run failed: {exc}")
+                raise
+        finally:
+            st.session_state["inflight_approval_ids"] = [
+                item for item in st.session_state.get("inflight_approval_ids", []) if str(item) != str(approval_id)
+            ]
+        if not assistant_text and not progress_lines:
             placeholder.markdown("_Waiting for a tool result, approval, or clarification._")
 
     consume_events(client, session_id, events, assistant_text=assistant_text or None)
@@ -381,20 +468,26 @@ def respond_to_clarification(client: BackendClient, clarification_id: str, answe
     
     events = []
     assistant_text = ""
+    progress_lines: list[str] = []
     with stream_target.chat_message("assistant", avatar=TRANSPARENT_PIXEL):
         placeholder = st.empty()
-        placeholder.markdown("_Resuming run…_")
+        _render_assistant_stream(placeholder, assistant_text, progress_lines)
         try:
             for event in client.stream_clarification(clarification_id, answer):
                 events.append(event)
                 if event.get("type") == "token":
                     assistant_text += event.get("token", "")
-                    placeholder.markdown(assistant_text)
+                    _render_assistant_stream(placeholder, assistant_text, progress_lines)
+                elif event.get("type") == "assistant_progress":
+                    summary = str(event.get("summary") or "").strip()
+                    if summary and summary not in progress_lines:
+                        progress_lines.append(summary)
+                    _render_assistant_stream(placeholder, assistant_text, progress_lines)
         except Exception as exc:
             placeholder.markdown("_The run failed before a response was rendered._")
             set_status(error=f"Chat run failed: {exc}")
             raise
-        if not assistant_text:
+        if not assistant_text and not progress_lines:
             placeholder.markdown("_Waiting for a tool result, approval, or clarification._")
             
     consume_events(client, session_id, events, assistant_text=assistant_text or None)
@@ -558,6 +651,12 @@ def render_chat_panel() -> None:
         with st.chat_message(message["role"], avatar=TRANSPARENT_PIXEL):
             if message["role"] == "user":
                 st.markdown(f"<div class='user-msg-marker'></div>\n\n{message['content']}", unsafe_allow_html=True)
+            elif message.get("kind") == "progress":
+                content_html = str(message.get("content_html") or "").strip()
+                if content_html:
+                    st.markdown(content_html, unsafe_allow_html=True)
+                else:
+                    st.markdown(message["content"])
             else:
                 st.markdown(message["content"])
     live_response_slot = st.container()
@@ -612,16 +711,21 @@ def render_approvals_panel(client: BackendClient) -> None:
     if not approvals:
         st.info("No pending approvals.")
         return
+    inflight_ids = {str(item) for item in st.session_state.get("inflight_approval_ids", [])}
     for approval in approvals:
+        approval_id = str(approval["approval_id"])
+        in_flight = approval_id in inflight_ids
         st.markdown(f"**{approval['name']}**")
         st.caption(f"Risk: {approval['risk_level']} | Run: {approval['run_id']}")
         st.code(approval["arguments"] or "{}", language="json")
+        if in_flight:
+            st.caption("Decision sent…")
         approve_col, reject_col = st.columns(2)
-        if approve_col.button("Approve", key=f"approve-{approval['approval_id']}", use_container_width=True):
-            _queue_approval_decision(approval["approval_id"], "approved")
+        if approve_col.button("Approve", key=f"approve-{approval['approval_id']}", use_container_width=True, disabled=in_flight):
+            _queue_approval_decision(approval_id, "approved")
             st.rerun()
-        if reject_col.button("Reject", key=f"reject-{approval['approval_id']}", use_container_width=True):
-            _queue_approval_decision(approval["approval_id"], "rejected")
+        if reject_col.button("Reject", key=f"reject-{approval['approval_id']}", use_container_width=True, disabled=in_flight):
+            _queue_approval_decision(approval_id, "rejected")
             st.rerun()
         st.markdown("---")
 

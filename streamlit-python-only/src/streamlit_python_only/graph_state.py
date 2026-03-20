@@ -62,6 +62,8 @@ class AgentState(TypedDict):
     control: dict[str, Any]
     output: dict[str, Any]
     run_trace: dict[str, Any]
+    progress_messages: list[dict[str, Any]]
+    last_progress_hash: str | None
 
 
 @dataclass(slots=True)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from streamlit.testing.v1 import AppTest
+from frontend.app import _merge_chat_with_progress
 
 
 def test_streamlit_app_renders_core_phase_three_panels():
@@ -283,3 +284,17 @@ run_app(client_factory=lambda: FakeClient())
     at.run(timeout=10)
 
     assert any("Approved and completed." in getattr(item, "value", "") for item in at.markdown)
+
+
+def test_merge_chat_with_progress_inserts_before_latest_assistant():
+    messages = [
+        {"role": "user", "content": "task"},
+        {"role": "assistant", "content": "final answer"},
+    ]
+    progress = [
+        {"role": "assistant", "kind": "progress", "content": "**Étape 3**\n- Action en cours: appel de `web_search`."}
+    ]
+    merged = _merge_chat_with_progress(messages, progress)
+    assert merged[0]["role"] == "user"
+    assert merged[1].get("kind") == "progress"
+    assert merged[2]["content"] == "final answer"

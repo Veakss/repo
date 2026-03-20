@@ -14,6 +14,13 @@ profiles:
     api_key_env: LLM_API_KEY
     model: google/gemini-2.5-flash
     mode: native
+  openrouter_thales_emulation:
+    provider: openrouter
+    label: OpenRouter Thales Emulation (Sequential Textual Replay)
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: LLM_API_KEY
+    model: google/gemini-2.5-flash-lite-preview-09-2025
+    mode: textual_replay
   thales_mistral_small:
     provider: thales
     label: Thales Mistral Small

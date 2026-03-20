@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from frontend.ui_state import build_terminal_html, build_timeline_html, derive_pending_items, flatten_tree, merge_timeline
+from frontend.ui_state import (
+    build_persistent_progress_messages,
+    build_terminal_html,
+    build_timeline_html,
+    derive_pending_items,
+    flatten_tree,
+    merge_timeline,
+)
 
 
 def test_merge_timeline_deduplicates_events():
@@ -68,3 +75,34 @@ def test_flatten_tree_and_timeline_html():
     )
     assert "pwd" in terminal_html
     assert "exit=0" in terminal_html
+
+
+def test_timeline_html_renders_progress_and_run_step():
+    html = build_timeline_html(
+        [
+            {"type": "assistant_progress", "runId": "r1", "stepIndex": 2, "summary": "Action terminée: `read_file` réussi.", "source": "runtime"},
+            {"type": "run_step", "runId": "r1", "stepIndex": 2, "kind": "tool_result", "status": "ok", "summary": "Tool `read_file` succeeded."},
+        ]
+    )
+    assert "Assistant progress #2" in html
+    assert "Run step #2 (tool_result)" in html
+
+
+def test_build_persistent_progress_messages_dedupes_and_keeps_order():
+    timeline = [
+        {"type": "assistant_progress", "runId": "r1", "stepIndex": 1, "summary": "Action en cours: appel de `web_search`."},
+        {"type": "assistant_progress", "runId": "r1", "stepIndex": 1, "summary": "Action en cours: appel de `web_search`."},
+        {"type": "assistant_progress", "runId": "r1", "stepIndex": 1, "summary": "Action terminée: `web_search` réussi."},
+        {"type": "assistant_progress", "runId": "r1", "stepIndex": 5, "summary": "Action en cours: appel de `write_file`."},
+        {"type": "assistant_progress", "runId": "r1", "stepIndex": 6, "summary": "Vérification: mise à jour du gap objectif/réalisation."},
+    ]
+    messages = build_persistent_progress_messages(timeline)
+    assert len(messages) == 3
+    assert messages[0]["kind"] == "progress"
+    assert messages[0]["content"].startswith("**Étape 1**")
+    assert "- Action en cours: appel de `web_search`." in messages[0]["content"]
+    assert "- Action terminée: `web_search` réussi." in messages[0]["content"]
+    assert messages[1]["content"].startswith("**Étape 2**")
+    assert "- Action en cours: appel de `write_file`." in messages[1]["content"]
+    assert messages[2]["content"].startswith("**Étape 3**")
+    assert "- Vérification: mise à jour du gap objectif/réalisation." in messages[2]["content"]
