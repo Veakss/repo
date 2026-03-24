@@ -57,6 +57,7 @@ class AgentState(TypedDict):
     conversation: dict[str, Any]
     runtime: dict[str, Any]
     goal: dict[str, Any]
+    procedure_state: dict[str, Any]
     evidence: dict[str, Any]
     decision: dict[str, Any]
     control: dict[str, Any]

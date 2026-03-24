@@ -11,6 +11,9 @@ from typing import Any, Callable
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
+from streamlit_python_only.agent.evaluation.engine import AgentEvaluationEngine
+from streamlit_python_only.agent.graph.runner import AgentGraphRunner
+from streamlit_python_only.agent.streaming import AgentRunStreamer
 from streamlit_python_only.events import (
     assistant_progress,
     approval_decision,
@@ -27,7 +30,6 @@ from streamlit_python_only.events import (
     terminal_opened,
     token,
 )
-from streamlit_python_only.graph_factory import create_runtime_graph
 from streamlit_python_only.graph_state import (
     AgentState,
     FinalAnswerContract,
@@ -39,7 +41,6 @@ from streamlit_python_only.graph_state import (
 )
 from streamlit_python_only.providers import ProviderCapabilities, ResolvedProvider, build_chat_model, resolve_provider
 from streamlit_python_only.rag import RagService, tokenize
-from streamlit_python_only.runtime_graph_orchestration import RuntimeGraphOrchestrationMixin
 from streamlit_python_only.run_state import RunStateStore, deserialize_messages, serialize_messages
 from streamlit_python_only.schemas import ApprovalDecisionRequest, ClarificationDecisionRequest, SidecarChatRequest
 from streamlit_python_only.terminal_manager import TerminalManager
@@ -435,16 +436,36 @@ def provider_capabilities_payload(provider: Any) -> dict[str, Any]:
     }
 
 
-def build_tool_replay_message(name: str, args: dict[str, Any], result: str, status: str) -> SystemMessage:
+def build_tool_replay_message(
+    name: str,
+    args: dict[str, Any],
+    result: str,
+    status: str,
+    *,
+    task: str | None = None,
+    done: list[str] | None = None,
+    remaining: list[str] | None = None,
+) -> SystemMessage:
+    done_items = [str(item).strip() for item in (done or []) if str(item).strip()]
+    remaining_items = [str(item).strip() for item in (remaining or []) if str(item).strip()]
     return SystemMessage(
         content=(
-            "Tool execution replay for provider compatibility.\n"
-            f"Tool name: {name}\n"
-            f"Arguments JSON: {json.dumps(args, ensure_ascii=False)}\n"
-            f"Tool status: {status}\n"
-            "Tool result:\n"
-            f"{result}\n"
-            "Continue the task using this result and do not rely on OpenAI tool-role replay."
+            "Tool execution replay for provider compatibility.\n\n"
+            "TASK\n"
+            f"{str(task or 'Continue the current user request.').strip()}\n\n"
+            "LAST_ACTION\n"
+            f"tool={name}\n"
+            f"status={status}\n"
+            f"arguments={json.dumps(args, ensure_ascii=False)}\n\n"
+            "OBSERVATION\n"
+            f"{result}\n\n"
+            "DONE\n"
+            f"{chr(10).join(done_items) if done_items else '- No verified completed items recorded yet.'}\n\n"
+            "REMAINING\n"
+            f"{chr(10).join(remaining_items) if remaining_items else '- Either answer now if the goal is satisfied, or choose one next useful action.'}\n\n"
+            "NEXT_ACTION_RULE\n"
+            "Choose exactly one next action. Either call one tool, answer finally, or ask for clarification. "
+            "Do not rely on OpenAI tool-role replay."
         )
     )
 
@@ -737,7 +758,7 @@ def parse_run_terminal_summary(result: str) -> dict[str, Any]:
     }
 
 
-class RuntimeEngine(RuntimeGraphOrchestrationMixin):
+class RuntimeEngine:
     def __init__(self, dependencies: RuntimeDependencies | None = None) -> None:
         if dependencies is None:
             terminal_manager = TerminalManager()
@@ -758,10 +779,62 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
                 rag_service=rag_service,
             )
         self.deps = dependencies
-        self.graph = create_runtime_graph(self)
+        self.evaluation = AgentEvaluationEngine(self)
+        self.graph_runner = AgentGraphRunner(self)
+        self.streaming = AgentRunStreamer(self)
+        self.graph = self.graph_runner.graph
 
     def _provider_capabilities_payload(self, provider: Any) -> dict[str, Any]:
         return provider_capabilities_payload(provider)
+
+    def _build_clarification_resume_message(self, clarification: dict[str, Any] | None, answer: str) -> SystemMessage:
+        return build_clarification_resume_message(clarification, answer)
+
+    def _build_early_clarification(self, last_user_message: str, clarification_enabled: bool) -> dict[str, Any] | None:
+        return build_early_clarification(last_user_message, clarification_enabled)
+
+    # Compatibility bridge while node logic is being migrated out of RuntimeEngine.
+    def _sync_graph_state_slices(self, state: AgentState) -> None:
+        self.graph_runner._sync_graph_state_slices(state)
+
+    def _preflight_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._preflight_node(state)
+
+    def _clarify_gate_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._clarify_gate_node(state)
+
+    def _clarify_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._clarify_node(state)
+
+    def _agent_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._agent_node(state)
+
+    def _tool_router_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._tool_router_node(state)
+
+    def _decision_validate_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._decision_validate_node(state)
+
+    def _tools_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._tools_node(state)
+
+    def _state_update_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._state_update_node(state)
+
+    def _state_reduce_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._state_reduce_node(state)
+
+    def _verify_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._verify_node(state)
+
+    def _repair_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._repair_node(state)
+
+    def _finish_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._finish_node(state)
+
+    def _fail_node(self, state: AgentState) -> AgentState:
+        return self.graph_runner._fail_node(state)
 
     def _build_tool_replay_message(self, name: str, args: dict[str, Any], result: str, status: str) -> SystemMessage:
         return build_tool_replay_message(name, args, result, status)
@@ -780,6 +853,51 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         if "requiresSequentialToolLoop" in capabilities:
             return bool(capabilities.get("requiresSequentialToolLoop"))
         return int(capabilities.get("maxToolCallsPerTurn", 8) or 8) <= 1
+
+    def _build_procedure_state(self, state: AgentState) -> dict[str, Any]:
+        done_items: list[str] = []
+        completed_tools: list[dict[str, Any]] = []
+        last_tool_name = ""
+        last_tool_status = ""
+        for result in state.get("tool_results", []):
+            tool_name = str(result.get("tool") or "").strip()
+            status = str(result.get("status") or "").strip()
+            if tool_name and status:
+                done_items.append(f"{tool_name}:{status}")
+                completed_tools.append({"tool": tool_name, "status": status})
+                last_tool_name = tool_name
+                last_tool_status = status
+        remaining_items: list[str] = []
+        blocker: str | None = None
+        if state.get("pending_approval"):
+            remaining_items.append("awaiting_approval")
+            blocker = "approval"
+        if state.get("pending_clarification"):
+            remaining_items.append("awaiting_clarification")
+            blocker = "clarification"
+        expected_next_action = "finish"
+        if state.get("pending_approval"):
+            expected_next_action = "approval_decision"
+        elif state.get("pending_clarification"):
+            expected_next_action = "clarification_answer"
+        elif str(state.get("graph_route") or "") in {"agent", "tool_executor", "verify", "repair"}:
+            expected_next_action = str(state.get("graph_route"))
+        phase = "completed"
+        if blocker:
+            phase = f"blocked_{blocker}"
+        elif str(state.get("graph_route") or ""):
+            phase = str(state.get("graph_route"))
+        return {
+            "doneItems": done_items[-12:],
+            "remainingItems": remaining_items,
+            "currentStepIndex": len(done_items),
+            "expectedNextAction": expected_next_action,
+            "phase": phase,
+            "lastToolName": last_tool_name or None,
+            "lastToolStatus": last_tool_status or None,
+            "completedTools": completed_tools[-12:],
+            "blocker": blocker,
+        }
 
     def _reset_no_progress(self, state: AgentState) -> None:
         state["no_progress_turns"] = 0
@@ -1300,56 +1418,10 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         }
 
     def _build_goal_state(self, state: AgentState) -> GoalState:
-        prompt = normalize_whitespace(self._last_user_message(state.get("messages", [])))
-        final_contract = FinalAnswerContract.from_payload(state.get("final_contract"))
-        multi_step_contract = MultiStepContract.from_payload(state.get("multi_step_contract"))
-        required_evidence_kinds: list[str] = []
-        required_facts = list(multi_step_contract.required_answer_fields)
-        if multi_step_contract.required_inputs:
-            required_evidence_kinds.extend(
-                f"{item.get('kind')}:{normalize_whitespace(str(item.get('target') or ''))}"
-                for item in multi_step_contract.required_inputs
-                if str(item.get("kind") or "").strip() and str(item.get("target") or "").strip()
-            )
-        if final_contract.require_sources:
-            required_evidence_kinds.append("web:sources")
-        if final_contract.require_grounding_from_rag:
-            required_evidence_kinds.append("rag:hits")
-        if final_contract.require_grounding and any(
-            keyword in prompt.lower() for keyword in ("inspect", "read", "search", "look up", "terminal", "workspace")
-        ):
-            required_evidence_kinds.append("tool:grounding")
-        return GoalState(
-            user_intent=prompt,
-            required_evidence_kinds=_dedupe_strings(required_evidence_kinds),
-            required_facts=_dedupe_strings(required_facts),
-            required_citations=bool(final_contract.require_sources or final_contract.require_citations_when_rag_used),
-            required_output_constraint={
-                "language": final_contract.requested_language,
-                "exactOutputText": final_contract.exact_output_text,
-                "requireGrounding": final_contract.require_grounding,
-                "requireGroundingFromRag": final_contract.require_grounding_from_rag,
-            },
-        )
+        return self.evaluation._build_goal_state(state)
 
     def _build_realization_state(self, state: AgentState, candidate_answer: str) -> RealizationState:
-        evidence_map = dict(state.get("evidence_map") or {})
-        evidence_summary = self._summarize_evidence_map(evidence_map)
-        facts = evidence_map.get("facts", {}) if isinstance(evidence_map.get("facts"), dict) else {}
-        available_evidence = {
-            **evidence_summary,
-            "executedTools": list(dict.fromkeys(state.get("executed_tools", [])))[-20:],
-            "webSearchUrls": list(state.get("web_search_last_result_urls", []))[:8],
-            "ragStatus": state.get("rag_lookup_last_status"),
-            "ragHitCount": state.get("rag_lookup_last_hit_count"),
-            "lastReadFilePath": state.get("last_read_file_path"),
-            "lastOpenedUrl": state.get("last_opened_url"),
-        }
-        return RealizationState(
-            available_evidence=available_evidence,
-            proven_facts=dict(facts),
-            candidate_answer=normalize_whitespace(candidate_answer),
-        )
+        return self.evaluation._build_realization_state(state, candidate_answer)
 
     def _build_goal_gap(
         self,
@@ -1358,42 +1430,7 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         realization: RealizationState,
         base_violations: list[tuple[str, str]] | None = None,
     ) -> GoalGap:
-        evidence_map = dict(state.get("evidence_map") or {})
-        contract = MultiStepContract.from_payload(state.get("multi_step_contract"))
-        step_progress = self._compute_step_progress(contract, evidence_map)
-        missing_evidence = list(step_progress.get("missingInputs") or [])
-        missing_facts = list(step_progress.get("missingAnswerFields") or [])
-
-        facts = realization.proven_facts
-        if "web:sources" in goal.required_evidence_kinds and len(state.get("web_search_last_result_urls", [])) < 2:
-            missing_evidence.append("web:sources")
-        if "rag:hits" in goal.required_evidence_kinds and int(state.get("rag_lookup_last_hit_count") or 0) <= 0:
-            missing_evidence.append("rag:hits")
-        if "tool:grounding" in goal.required_evidence_kinds and not state.get("tool_results"):
-            missing_evidence.append("tool:grounding")
-
-        for fact_name in goal.required_facts:
-            if fact_name == "checkpoint" and not facts.get("checkpoint"):
-                missing_facts.append("checkpoint")
-            elif fact_name == "product_name" and not facts.get("product_name"):
-                missing_facts.append("product_name")
-            elif fact_name == "stack" and not facts.get("stack_terms"):
-                missing_facts.append("stack")
-            elif fact_name == "preferred_editor" and not facts.get("preferred_editor"):
-                missing_facts.append("preferred_editor")
-            elif fact_name == "status" and not facts.get("status"):
-                missing_facts.append("status")
-            elif fact_name == "extra_file" and not facts.get("extra_files"):
-                missing_facts.append("extra_file")
-
-        answer_defects = [code for code, _message in (base_violations or [])]
-        return GoalGap(
-            missing_evidence=_dedupe_strings(missing_evidence),
-            missing_facts=_dedupe_strings(missing_facts),
-            answer_defects=_dedupe_strings(answer_defects),
-            can_gather_more_evidence=bool(missing_evidence),
-            is_complete=not missing_evidence and not missing_facts and not answer_defects,
-        )
+        return self.evaluation._build_goal_gap(state, goal, realization, base_violations)
 
     def _refresh_goal_tracking(
         self,
@@ -1401,53 +1438,10 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         candidate_answer: str | None = None,
         base_violations: list[tuple[str, str]] | None = None,
     ) -> GoalAssessment:
-        goal = self._build_goal_state(state)
-        realization = self._build_realization_state(state, candidate_answer if candidate_answer is not None else str(state.get("final_text") or ""))
-        gap = self._build_goal_gap(state, goal, realization, base_violations)
-        action = "finish"
-        multi_step_contract = MultiStepContract.from_payload(state.get("multi_step_contract"))
-        if (
-            is_multistep_contract_active(multi_step_contract)
-            and gap.missing_evidence
-            and gap.can_gather_more_evidence
-            and self._has_runtime_actionable_missing_evidence(gap.missing_evidence)
-        ):
-            action = "gather_more_evidence"
-        elif gap.missing_facts or gap.answer_defects:
-            action = "repair_answer"
-        assessment = GoalAssessment(
-            action=action,
-            mismatch_codes=list(base_violations or []),
-            goal=goal,
-            realization=realization,
-            gap=gap,
-        )
-        state["goal_summary"] = goal.to_payload()
-        state["realization_summary"] = realization.to_payload()
-        state["goal_gap_summary"] = gap.to_payload()
-        return assessment
+        return self.evaluation._refresh_goal_tracking(state, candidate_answer, base_violations)
 
     def _goal_gap_events(self, run_id: str, state: AgentState, reason: str) -> list[dict[str, Any]]:
-        return [
-            run_diagnostic(
-                run_id,
-                "goal_summary",
-                "Goal summary captured.",
-                data={**dict(state.get("goal_summary") or {}), "reason": reason},
-            ),
-            run_diagnostic(
-                run_id,
-                "realization_summary",
-                "Realization summary captured.",
-                data={**dict(state.get("realization_summary") or {}), "reason": reason},
-            ),
-            run_diagnostic(
-                run_id,
-                "goal_gap_summary",
-                "Goal gap summary captured.",
-                data={**dict(state.get("goal_gap_summary") or {}), "reason": reason},
-            ),
-        ]
+        return self.evaluation._goal_gap_events(run_id, state, reason)
 
     def _build_multistep_progress_events(
         self,
@@ -1458,33 +1452,7 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         *,
         reason: str,
     ) -> list[dict[str, Any]]:
-        progress_data = {
-            "reason": reason,
-            "expectedStepCount": int(contract.expected_step_count or 0),
-            "requiredInputCount": len(contract.required_inputs),
-            "requiredAnswerFieldCount": len(contract.required_answer_fields),
-            "completedStepCount": int(step_progress.get("completedStepCount") or 0),
-            "completionRatio": round(float(step_progress.get("completionRatio") or 0.0), 4),
-            "coveredInputs": list(step_progress.get("coveredInputs") or []),
-            "missingInputs": list(step_progress.get("missingInputs") or []),
-            "coveredAnswerFields": list(step_progress.get("coveredAnswerFields") or []),
-            "missingAnswerFields": list(step_progress.get("missingAnswerFields") or []),
-        }
-        evidence_summary = self._summarize_evidence_map(evidence_map)
-        return [
-            run_diagnostic(
-                run_id,
-                "multistep_progress_snapshot",
-                "Multi-step progress snapshot captured.",
-                data=progress_data,
-            ),
-            run_diagnostic(
-                run_id,
-                "multistep_evidence_summary",
-                "Multi-step evidence summary captured.",
-                data={**evidence_summary, "reason": reason},
-            ),
-        ]
+        return self.evaluation._build_multistep_progress_events(run_id, contract, step_progress, evidence_map, reason=reason)
 
     def _workspace_label_from_text(self, text: str) -> str | None:
         match = re.search(r"\bin the\s+(.+?)\s+workspace\b", str(text or ""), flags=re.IGNORECASE)
@@ -2141,54 +2109,16 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         return ("task_completion_unverified", "; ".join(parts))
 
     def _build_run_metrics_event(self, state: AgentState) -> dict[str, Any]:
-        return run_diagnostic(
-            state["run_id"],
-            "run_metrics",
-            "Runtime metrics snapshot.",
-            data={
-                "toolCalls": len(state.get("tool_results", [])),
-                "toolSuccesses": sum(1 for item in state.get("tool_results", []) if item.get("status") == "succeeded"),
-                "toolFailures": sum(1 for item in state.get("tool_results", []) if item.get("status") != "succeeded"),
-                "repairs": int(state.get("repair_attempts", 0) or 0),
-                "noProgressTurns": int(state.get("no_progress_turns", 0) or 0),
-                "executedTools": list(dict.fromkeys(state.get("executed_tools", [])))[-20:],
-            },
-        )
+        return self.streaming._build_run_metrics_event(state)
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
 
     def _build_initial_run_trace(self, state: AgentState) -> dict[str, Any]:
-        goal_summary = dict(state.get("goal_summary") or {})
-        goal_text = normalize_whitespace(str(goal_summary.get("userIntent") or self._last_user_message(state.get("messages", [])) or ""))
-        return {
-            "run_id": state.get("run_id"),
-            "session_id": state.get("session_id"),
-            "started_at": self._now_iso(),
-            "ended_at": None,
-            "goal": goal_text,
-            "steps": [],
-            "outcome": None,
-            "failure": None,
-            "_event_cursor": 0,
-            "_step_emit_cursor": 0,
-        }
+        return self.streaming._build_initial_run_trace(state)
 
     def _ensure_run_trace(self, state: AgentState) -> dict[str, Any]:
-        trace = state.get("run_trace")
-        if not isinstance(trace, dict):
-            trace = self._build_initial_run_trace(state)
-            state["run_trace"] = trace
-        trace.setdefault("run_id", state.get("run_id"))
-        trace.setdefault("session_id", state.get("session_id"))
-        trace.setdefault("started_at", self._now_iso())
-        trace.setdefault("goal", normalize_whitespace(str((state.get("goal_summary") or {}).get("userIntent") or self._last_user_message(state.get("messages", [])) or "")))
-        trace.setdefault("steps", [])
-        trace.setdefault("outcome", None)
-        trace.setdefault("failure", None)
-        trace.setdefault("_event_cursor", 0)
-        trace.setdefault("_step_emit_cursor", 0)
-        return trace
+        return self.streaming._ensure_run_trace(state)
 
     def _append_run_trace_step(
         self,
@@ -2199,142 +2129,22 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         summary: str,
         data: dict[str, Any] | None = None,
     ) -> None:
-        trace = self._ensure_run_trace(state)
-        steps = trace.get("steps")
-        if not isinstance(steps, list):
-            steps = []
-            trace["steps"] = steps
-        step = {
-            "index": len(steps) + 1,
-            "kind": kind,
-            "status": status,
-            "summary": normalize_whitespace(summary),
-            "timestamp": self._now_iso(),
-        }
-        if data:
-            step["data"] = data
-        steps.append(step)
+        self.streaming._append_run_trace_step(state, kind=kind, status=status, summary=summary, data=data)
 
     def _append_trace_steps_from_tool_events(self, state: AgentState) -> None:
-        trace = self._ensure_run_trace(state)
-        cursor = int(trace.get("_event_cursor", 0) or 0)
-        tool_events = list(state.get("tool_events", []))
-        if cursor >= len(tool_events):
-            return
-        for event in tool_events[cursor:]:
-            event_type = str(event.get("type") or "")
-            if event_type == "tool_call":
-                tool_name = str(event.get("name") or "tool")
-                self._append_run_trace_step(
-                    state,
-                    kind="tool_call",
-                    status="pending",
-                    summary=f"Call tool `{tool_name}`.",
-                    data={"tool": tool_name, "actionId": event.get("actionId")},
-                )
-            elif event_type == "tool_result":
-                tool_name = str(event.get("name") or "tool")
-                ok = bool(event.get("ok"))
-                self._append_run_trace_step(
-                    state,
-                    kind="tool_result",
-                    status="ok" if ok else "failed",
-                    summary=f"Tool `{tool_name}` {'succeeded' if ok else 'failed'}.",
-                    data={"tool": tool_name, "ok": ok},
-                )
-            elif event_type == "run_diagnostic":
-                code = str(event.get("code") or "")
-                message = str(event.get("message") or code or "diagnostic")
-                if code in {"goal_gap_summary", "task_completion_unverified"}:
-                    self._append_run_trace_step(
-                        state,
-                        kind="verify",
-                        status="warn" if code == "task_completion_unverified" else "ok",
-                        summary=message,
-                        data={"code": code, "data": event.get("data")},
-                    )
-                elif code in {"final_contract_repair_requested", "verify_guardrail_repair", "verify_guardrail_repeated", "final_contract_repair_failed"}:
-                    self._append_run_trace_step(
-                        state,
-                        kind="repair",
-                        status="warn",
-                        summary=message,
-                        data={"code": code},
-                    )
-        trace["_event_cursor"] = len(tool_events)
+        self.streaming._append_trace_steps_from_tool_events(state)
 
     def _record_progress_message(self, state: AgentState, summary: str, *, source: str = "runtime") -> dict[str, Any] | None:
-        cleaned = normalize_whitespace(summary)
-        if not cleaned:
-            return None
-        if len(cleaned) > 280:
-            cleaned = cleaned[:277].rstrip() + "..."
-        signature = f"{source}:{cleaned.lower()}"
-        if signature == str(state.get("last_progress_hash") or ""):
-            return None
-        progress_messages = list(state.get("progress_messages", []))
-        payload = {
-            "stepIndex": len(self._ensure_run_trace(state).get("steps", [])),
-            "summary": cleaned,
-            "source": source,
-            "timestamp": self._now_iso(),
-        }
-        progress_messages.append(payload)
-        state["progress_messages"] = progress_messages[-40:]
-        state["last_progress_hash"] = signature
-        return payload
+        return self.streaming._record_progress_message(state, summary, source=source)
 
     def _progress_summary_from_event(self, event: dict[str, Any]) -> str | None:
-        event_type = str(event.get("type") or "")
-        if event_type == "tool_call":
-            tool_name = str(event.get("name") or "tool")
-            return f"Action en cours: appel de `{tool_name}`."
-        if event_type == "tool_result":
-            tool_name = str(event.get("name") or "tool")
-            ok = bool(event.get("ok"))
-            return f"Action terminée: `{tool_name}` {'réussi' if ok else 'a échoué'}."
-        if event_type == "run_diagnostic":
-            code = str(event.get("code") or "")
-            if code == "goal_gap_summary":
-                return "Vérification: mise à jour du gap objectif/réalisation."
-            if code in {"task_completion_unverified", "verify_guardrail_repair"}:
-                return "Vérification: le run continue pour fermer le gap."
-        return None
+        return self.streaming._progress_summary_from_event(event)
 
     def _collect_new_run_step_events(self, state: AgentState) -> list[dict[str, Any]]:
-        trace = self._ensure_run_trace(state)
-        steps = trace.get("steps", [])
-        if not isinstance(steps, list):
-            return []
-        cursor = int(trace.get("_step_emit_cursor", 0) or 0)
-        if cursor >= len(steps):
-            return []
-        emitted: list[dict[str, Any]] = []
-        for step in steps[cursor:]:
-            emitted.append(
-                run_step_event(
-                    str(state.get("run_id") or ""),
-                    int(step.get("index") or 0),
-                    str(step.get("kind") or "step"),
-                    str(step.get("status") or "unknown"),
-                    str(step.get("summary") or ""),
-                )
-            )
-        trace["_step_emit_cursor"] = len(steps)
-        return emitted
+        return self.streaming._collect_new_run_step_events(state)
 
     def _failure_defaults(self, code: str) -> tuple[str, str]:
-        defaults: dict[str, tuple[str, str]] = {
-            "missing_evidence": ("Missing required evidence to complete the goal.", "gather_missing_evidence"),
-            "verification_failed": ("Final verification failed.", "repair_from_existing_evidence"),
-            "tool_failed": ("A required tool action failed.", "retry_or_switch_tool"),
-            "approval_blocked": ("Execution is blocked pending user approval.", "provide_approval_decision"),
-            "clarification_blocked": ("Execution is blocked pending user clarification.", "provide_clarification_answer"),
-            "no_progress_limit": ("No-progress guardrail stopped the run.", "stop_and_report_partial"),
-            "invalid_final_answer": ("Final answer is invalid or ambiguous.", "repair_final_answer"),
-            "runtime_exception": ("Runtime raised an exception.", "retry_run"),
-        }
-        return defaults.get(code, defaults["verification_failed"])
+        return self.evaluation._failure_defaults(code)
 
     def _build_failure_payload(
         self,
@@ -2345,17 +2155,13 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         context: dict[str, Any] | None = None,
         next_action: str | None = None,
     ) -> dict[str, Any]:
-        normalized_code = code if code in FAILURE_CODE_SET else "verification_failed"
-        default_message, default_next_action = self._failure_defaults(normalized_code)
-        payload: dict[str, Any] = {
-            "code": normalized_code,
-            "message": normalize_whitespace(message or default_message),
-            "missing_evidence": list(missing_evidence or []),
-            "next_action": next_action or default_next_action,
-        }
-        if context:
-            payload["context"] = dict(context)
-        return payload
+        return self.evaluation._build_failure_payload(
+            code,
+            message=message,
+            missing_evidence=missing_evidence,
+            context=context,
+            next_action=next_action,
+        )
 
     def _failure_from_goal_assessment(
         self,
@@ -2364,667 +2170,43 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         violations: list[tuple[str, str]],
         final_text: str,
     ) -> dict[str, Any]:
-        violation_codes = {code for code, _message in violations}
-        if not normalize_whitespace(final_text) or {"empty_final_answer", "invalid_final_answer"}.intersection(violation_codes):
-            message = "; ".join(message for _code, message in violations if _code in {"empty_final_answer", "invalid_final_answer"}) or None
-            return self._build_failure_payload("invalid_final_answer", message=message)
-        if assessment.gap.missing_evidence or assessment.gap.missing_facts or "task_completion_unverified" in violation_codes:
-            missing = _dedupe_strings([*assessment.gap.missing_evidence, *assessment.gap.missing_facts])
-            return self._build_failure_payload(
-                "missing_evidence",
-                message="Goal gap is still open: missing verified evidence.",
-                missing_evidence=missing,
-            )
-        if int(state.get("no_progress_turns", 0) or 0) >= MAX_NO_PROGRESS_TURNS:
-            return self._build_failure_payload("no_progress_limit")
-        if any(code in {"tool_execution_error", "terminal_tool_error"} for code, _message in violations):
-            return self._build_failure_payload("tool_failed")
-        message = "; ".join(message for _code, message in violations[:4]) if violations else None
-        return self._build_failure_payload("verification_failed", message=message)
+        return self.evaluation._failure_from_goal_assessment(state, assessment, violations, final_text)
 
     def _build_failure_final_text(self, failure: dict[str, Any]) -> str:
-        code = str(failure.get("code") or "verification_failed")
-        message = str(failure.get("message") or "Final verification failed.")
-        missing = [str(item) for item in failure.get("missing_evidence", []) if str(item).strip()]
-        next_action = str(failure.get("next_action") or "")
-        parts = [f"Run failed (`{code}`): {message}"]
-        if missing:
-            parts.append("Missing evidence: " + ", ".join(missing[:6]) + ".")
-        if next_action:
-            parts.append(f"Next action: {next_action}.")
-        return " ".join(parts)
+        return self.evaluation._build_failure_final_text(failure)
 
     def _finalize_run_trace(self, state: AgentState, *, outcome: str, failure: dict[str, Any] | None = None) -> dict[str, Any]:
-        trace = self._ensure_run_trace(state)
-        trace["ended_at"] = self._now_iso()
-        trace["outcome"] = "completed" if outcome == "completed" else "failed"
-        trace["failure"] = None if outcome == "completed" else dict(failure or self._build_failure_payload("verification_failed"))
-        return trace
+        return self.evaluation._finalize_run_trace(state, outcome=outcome, failure=failure)
 
     def _assert_terminal_consistency(self, trace: dict[str, Any]) -> tuple[bool, str]:
-        outcome = str(trace.get("outcome") or "")
-        failure = trace.get("failure")
-        steps = trace.get("steps")
-        if outcome not in {"completed", "failed"}:
-            return False, "Trace outcome is missing or invalid."
-        if not isinstance(steps, list) or not steps:
-            return False, "Trace has no steps."
-        if outcome == "completed" and failure:
-            return False, "Completed trace should not include failure payload."
-        if outcome == "failed":
-            if not isinstance(failure, dict) or str(failure.get("code") or "") not in FAILURE_CODE_SET:
-                return False, "Failed trace must include a valid failure code."
-        return True, "ok"
+        return self.evaluation._assert_terminal_consistency(trace)
 
     def _run_trace_summary(self, trace: dict[str, Any]) -> dict[str, Any]:
-        failure = trace.get("failure") if isinstance(trace.get("failure"), dict) else None
-        summary = {
-            "outcome": trace.get("outcome"),
-            "step_count": len(trace.get("steps", [])) if isinstance(trace.get("steps"), list) else 0,
-        }
-        if failure:
-            summary["failure"] = {"code": failure.get("code"), "next_action": failure.get("next_action")}
-        return summary
+        return self.evaluation._run_trace_summary(trace)
 
     def _is_blocking_violation(self, code: str) -> bool:
-        return code in {
-            "empty_final_answer",
-            "invalid_final_answer",
-            "action_claim_without_tool_open_url",
-            "action_claim_without_tool_open_file",
-            "sources_missing_in_final_answer",
-            "rag_citations_missing",
-            "rag_status_not_disclosed",
-            "rag_grounding_weak",
-            "missing_required_evidence",
-            "missing_required_facts",
-            "answer_ignores_strong_evidence",
-            "task_completion_unverified",
-            "exact_output_mismatch",
-            "wrong_response_language",
-        }
+        return self.evaluation._is_blocking_violation(code)
 
     def _evaluate_goal_completion(self, state: AgentState, final_text: str) -> GoalAssessment:
-        contract = FinalAnswerContract.from_payload(state.get("final_contract"))
-        multi_step_contract = MultiStepContract.from_payload(state.get("multi_step_contract"))
-        violations: list[tuple[str, str]] = []
-        normalized_final = normalize_whitespace(final_text)
-        if not normalized_final:
-            violations.append(("empty_final_answer", "Model returned an empty final answer."))
-        elif self._looks_like_stale_final_answer(state, final_text):
-            violations.append(("invalid_final_answer", "Final answer is stale, polluted by intermediate output, or looks like tool JSON."))
-
-        action_claim = self._detect_action_claim_mismatch(state, final_text)
-        if action_claim:
-            violations.append(action_claim)
-
-        answer_language = detect_message_language(final_text)
-        if contract.requested_language and answer_language and answer_language != contract.requested_language:
-            violations.append(
-                (
-                    "wrong_response_language",
-                    f"Expected {describe_language(contract.requested_language)}, got {describe_language(answer_language)}.",
-                )
-            )
-
-        if contract.exact_output_text and normalized_final and normalize_exact_output(final_text) != normalize_exact_output(contract.exact_output_text):
-            violations.append(("exact_output_mismatch", f"Expected exact output `{contract.exact_output_text}`."))
-
-        used_tools = set(state.get("used_tool_names", []))
-        urls = extract_urls(final_text)
-        requires_sources = contract.require_sources or "web_search" in used_tools
-        if requires_sources and len(urls) < 2:
-            violations.append(("sources_missing_in_final_answer", "Final answer should include a Sources section with at least two source links."))
-
-        rag_result = self._last_rag_tool_result(state)
-        rag_meta = rag_result.get("meta", {}) if rag_result and isinstance(rag_result.get("meta"), dict) else {}
-        rag_used = "rag_lookup" in used_tools and rag_result is not None
-        if rag_used:
-            strong_hits = int(rag_meta.get("strongHitCount", 0) or 0)
-            requires_rag_citations = contract.require_citations_when_rag_used or strong_hits > 0
-            if requires_rag_citations and not self._final_text_has_rag_citation(final_text, rag_meta):
-                violations.append(("rag_citations_missing", "Final answer should include compact document citations for the RAG evidence used."))
-            if strong_hits <= 0:
-                if not self._is_cautious_answer(final_text):
-                    violations.append(("rag_grounding_weak", "RAG hits are weak; the final answer should stay cautious and avoid unsupported claims."))
-            else:
-                lowered_final = normalized_final.lower()
-                grounding_terms = self._extract_grounding_terms(state)
-                if grounding_terms and not any(term in lowered_final for term in grounding_terms):
-                    violations.append(("rag_grounding_weak", "Final answer is not clearly grounded in the retrieved RAG evidence."))
-                evidence = self._best_rag_evidence(state)
-                salient_terms = evidence.get("salientTerms", []) if evidence else []
-                if salient_terms and not any(term in lowered_final for term in salient_terms):
-                    violations.append(("rag_grounding_weak", "Final answer does not preserve the salient wording of the strongest retrieved RAG evidence."))
-
-        requires_grounding = contract.require_grounding and bool(used_tools.intersection(GROUNDING_TOOL_NAMES))
-        if requires_grounding and not rag_used:
-            lowered_final = normalized_final.lower()
-            grounding_terms = self._extract_grounding_terms(state)
-            preferred_workspace_label = self._preferred_workspace_label(state)
-            read_only_grounding = bool(used_tools) and set(used_tools).issubset({"read_file", "open_file", "open_resource"})
-            fact_grounded = self._final_text_matches_evidence_facts(state, final_text)
-            workspace_label_missing = bool(
-                preferred_workspace_label
-                and preferred_workspace_label.lower() not in lowered_final
-                and bool(used_tools.intersection({"run_terminal", "terminal_wait_for_output", "terminal_snapshot"}))
-            )
-            if ((grounding_terms and not any(term in lowered_final for term in grounding_terms) and not (read_only_grounding and fact_grounded)) or workspace_label_missing):
-                violations.append(("final_contract_repair_requested", "Final answer is not clearly grounded in the tool result."))
-            directory_result = next((item for item in reversed(state.get("tool_results", [])) if item.get("tool") == "list_directory"), None)
-            directory_details = self._directory_project_details(directory_result) if directory_result else None
-            prompt = str(self._last_user_message(state.get("messages", [])) or "").lower()
-            if directory_details and "project" in prompt:
-                required_terms = directory_details.get("preferredTerms") or directory_details.get("salientTerms", [])
-                if required_terms and not any(term in lowered_final for term in required_terms):
-                    violations.append(("final_contract_repair_requested", "Project summary should preserve at least one salient descriptor from the directory evidence."))
-        elif contract.require_grounding and self._is_followup_grounded_turn(state):
-            previous_assistant = self._previous_assistant_message(state)
-            preferred_workspace_label = self._workspace_label_from_text(previous_assistant) or self._preferred_workspace_label(state)
-            final_lowered = normalized_final.lower()
-            expected_terms = self._followup_grounding_terms_from_text(previous_assistant)
-            missing_workspace_label = bool(preferred_workspace_label and preferred_workspace_label.lower() not in final_lowered)
-            missing_followup_terms = bool(expected_terms and not any(term in final_lowered for term in expected_terms))
-            if missing_workspace_label or missing_followup_terms:
-                violations.append(("final_contract_repair_requested", "Follow-up summary should stay grounded in the previous verified assistant context."))
-
-        assessment = self._refresh_goal_tracking(state, final_text, violations)
-        if is_multistep_contract_active(multi_step_contract) and (assessment.gap.missing_evidence or assessment.gap.missing_facts):
-            missing_parts: list[str] = []
-            if assessment.gap.missing_evidence:
-                missing_parts.append("missing evidence: " + ", ".join(assessment.gap.missing_evidence[:6]))
-            if assessment.gap.missing_facts:
-                missing_parts.append("missing facts: " + ", ".join(assessment.gap.missing_facts[:6]))
-            assessment.mismatch_codes.append(("task_completion_unverified", "; ".join(missing_parts)))
-            if assessment.gap.answer_defects is not None:
-                assessment.gap.answer_defects = _dedupe_strings([*assessment.gap.answer_defects, "task_completion_unverified"])
-            assessment.action = "gather_more_evidence" if assessment.gap.missing_evidence and assessment.gap.can_gather_more_evidence else "repair_answer"
-            state["goal_gap_summary"] = assessment.gap.to_payload()
-        elif is_multistep_contract_active(multi_step_contract) and assessment.gap.is_complete and not violations:
-            state["goal_gap_summary"] = assessment.gap.to_payload()
-            state["tool_events"] = list(state.get("tool_events", [])) + [
-                run_diagnostic(
-                    state["run_id"],
-                    "finished_after_sufficient_evidence",
-                    "Verified evidence fully covers the goal, so the run is complete.",
-                    level="info",
-                    data=dict(state.get("goal_gap_summary") or {}),
-                )
-            ]
-            required_inputs = len(multi_step_contract.required_inputs)
-            tool_result_count = len(state.get("tool_results", []))
-            if tool_result_count > max(required_inputs, 0):
-                state["tool_events"] = list(state.get("tool_events", [])) + [
-                    run_diagnostic(
-                        state["run_id"],
-                        "overcontinued_without_need",
-                        "The goal was already covered, but the run used more tool steps than the explicit evidence needs.",
-                        level="info",
-                        data={
-                            **dict(state.get("goal_gap_summary") or {}),
-                            "toolResultCount": tool_result_count,
-                            "requiredInputCount": required_inputs,
-                        },
-                    )
-                ]
-        return assessment
+        return self.evaluation._evaluate_goal_completion(state, final_text)
 
     def _collect_contract_violations(self, state: AgentState, final_text: str) -> list[tuple[str, str]]:
-        assessment = self._evaluate_goal_completion(state, final_text)
-        return list(assessment.mismatch_codes)
+        return self.evaluation._collect_contract_violations(state, final_text)
 
     def _build_final_repair_prompt(self, state: AgentState, violations: list[tuple[str, str]]) -> str:
-        contract = FinalAnswerContract.from_payload(state.get("final_contract"))
-        assessment = self._refresh_goal_tracking(state, str(state.get("final_text") or ""), violations)
-        lines = [
-            "Final answer repair only.",
-            "Do not call any tools. Use only the verified tool outputs already in the conversation.",
-            "Fix the final answer so it satisfies the goal and the verified evidence exactly.",
-            "Do not repeat stale fragments from earlier assistant replies.",
-            "Do not include '(empty response)' anywhere.",
-        ]
-        if assessment.goal.user_intent:
-            lines.append(f"Objective: {assessment.goal.user_intent}")
-        if assessment.realization.proven_facts:
-            lines.append("Current realization from verified evidence:")
-            for key, value in assessment.realization.proven_facts.items():
-                lines.append(f"- {key}: {value}")
-        if assessment.gap.missing_evidence or assessment.gap.missing_facts or assessment.gap.answer_defects:
-            lines.append("Goal gap to close:")
-            if assessment.gap.missing_evidence:
-                lines.append("- missing evidence: " + ", ".join(assessment.gap.missing_evidence[:6]))
-            if assessment.gap.missing_facts:
-                lines.append("- missing facts: " + ", ".join(assessment.gap.missing_facts[:6]))
-            if assessment.gap.answer_defects:
-                lines.append("- answer defects: " + ", ".join(assessment.gap.answer_defects[:6]))
-        if contract.requested_language:
-            lines.append(f"Answer in {describe_language(contract.requested_language)}.")
-        if contract.exact_output_text:
-            lines.append(f"Return exactly this text and nothing else: {contract.exact_output_text}")
-        if contract.require_sources or "web_search" in set(state.get("used_tool_names", [])):
-            lines.append("Add a separate Sources section with at least two Markdown links like [Title](https://...).")
-            lines.append("Keep URLs out of the main body unless the user explicitly asks to display raw links.")
-        if contract.require_grounding and set(state.get("used_tool_names", [])).intersection(GROUNDING_TOOL_NAMES):
-            lines.append("Keep the answer grounded in the tool evidence from this run.")
-        elif contract.require_grounding and self._is_followup_grounded_turn(state):
-            previous_assistant = self._previous_assistant_message(state)
-            if previous_assistant:
-                lines.append("Keep the answer grounded in the previous verified assistant answer from this same conversation.")
-                lines.append("Verified conversation context excerpt:")
-                lines.append(previous_assistant[-1200:])
-        rag_result = self._last_rag_tool_result(state)
-        rag_meta = rag_result.get("meta", {}) if rag_result and isinstance(rag_result.get("meta"), dict) else {}
-        if any(code == "task_completion_unverified" for code, _message in violations):
-            lines.append("If the verified evidence is still incomplete, answer honestly about what is missing instead of pretending the task is complete.")
-        if "rag_lookup" in set(state.get("used_tool_names", [])):
-            if contract.require_citations_when_rag_used or int(rag_meta.get("strongHitCount", 0)) > 0:
-                lines.append("Include compact document citations from the retrieved RAG hits.")
-            if int(rag_meta.get("strongHitCount", 0)) <= 0:
-                lines.append("If the retrieved RAG hits are weak, say that the documents are insufficient instead of guessing.")
-        lines.append("Violations to repair:")
-        lines.extend(f"- {message}" for _code, message in violations)
-        return "\n".join(lines)
+        return self.evaluation._build_final_repair_prompt(state, violations)
 
     def _synthesize_fallback_final_answer(self, state: AgentState) -> str | None:
-        contract = FinalAnswerContract.from_payload(state.get("final_contract"))
-        multi_step_contract = MultiStepContract.from_payload(state.get("multi_step_contract"))
-        evidence_map = dict(state.get("evidence_map") or {})
-        facts = evidence_map.get("facts", {}) if isinstance(evidence_map.get("facts"), dict) else {}
-        if contract.exact_output_text:
-            return contract.exact_output_text
-
-        if is_multistep_contract_active(multi_step_contract) and multi_step_contract.required_answer_fields:
-            parts: list[str] = []
-            product_name = str(facts.get("product_name") or "").strip()
-            checkpoint = str(facts.get("checkpoint") or "").strip()
-            preferred_editor = str(facts.get("preferred_editor") or "").strip()
-            stack_terms = [str(item).strip() for item in facts.get("stack_terms", []) if str(item).strip()]
-            extra_files = [str(item).strip() for item in facts.get("extra_files", []) if str(item).strip()]
-            if product_name and "product_name" in multi_step_contract.required_answer_fields:
-                parts.append(product_name)
-            if checkpoint and "checkpoint" in multi_step_contract.required_answer_fields:
-                parts.append(checkpoint)
-            if stack_terms and "stack" in multi_step_contract.required_answer_fields:
-                parts.append(" / ".join(stack_terms[:3]))
-            if preferred_editor and "preferred_editor" in multi_step_contract.required_answer_fields:
-                parts.append(preferred_editor)
-            if extra_files and "extra_file" in multi_step_contract.required_answer_fields:
-                parts.append(extra_files[0])
-            if parts:
-                return ". ".join(parts) + "."
-
-        tool_results = list(state.get("tool_results", []))
-        web_result = next((item for item in reversed(tool_results) if item.get("tool") == "web_search"), None)
-        if web_result:
-            result_text = str(web_result.get("result") or "")
-            markdown_matches = re.findall(r"-\s+\[([^\]]+)\]\((https?://[^)]+)\)", result_text)
-            colon_matches = re.findall(r"-\s+(.+?):\s+(https?://\S+)", result_text)
-            matches = markdown_matches or colon_matches
-            if len(matches) >= 2:
-                first_title, first_url = matches[0]
-                second_title, second_url = matches[1]
-                return (
-                    f"Latest OpenAI coverage includes {first_title} and {second_title}.\n\n"
-                    "Sources:\n"
-                    f"- [{first_title}]({first_url})\n"
-                    f"- [{second_title}]({second_url})"
-                )
-
-        terminal_outputs = [item for item in tool_results if item.get("tool") == "run_terminal"]
-        if terminal_outputs and contract.require_grounding:
-            pwd_output = ""
-            ls_output = ""
-            for item in terminal_outputs:
-                result = str(item.get("result") or "")
-                if "Command: pwd" in result and "Output:" in result:
-                    pwd_output = result.split("Output:", 1)[-1].strip()
-                if "Command: ls" in result and "Output:" in result:
-                    ls_output = result.split("Output:", 1)[-1].strip()
-            if pwd_output or ls_output:
-                entries = [line.strip() for line in ls_output.splitlines() if line.strip()][:4]
-                workspace_label = self._preferred_workspace_label(state)
-                if pwd_output and entries:
-                    if workspace_label:
-                        return f"The current directory is {pwd_output} in the {workspace_label} workspace, and the workspace root contains {', '.join(entries)}."
-                    return f"The current directory is {pwd_output}, and the workspace root contains {', '.join(entries)}."
-                if pwd_output:
-                    return f"The current directory is {pwd_output}."
-            generic_terminal = self._build_terminal_fallback_summary(state, terminal_outputs[-1])
-            if generic_terminal:
-                return generic_terminal
-        if contract.require_grounding:
-            directory_result = next((item for item in reversed(tool_results) if item.get("tool") == "list_directory"), None)
-            if directory_result:
-                directory_summary = self._build_directory_fallback_summary(state, directory_result)
-                if directory_summary:
-                    return directory_summary
-        if contract.require_grounding and self._is_followup_grounded_turn(state):
-            workspace_label = self._preferred_workspace_label(state)
-            injected = self._inject_workspace_label_into_followup(
-                str(state.get("final_text") or ""),
-                workspace_label or "",
-                contract.requested_language,
-            )
-            if injected:
-                return injected
-            followup_summary = self._synthesize_followup_grounded_summary(state)
-            if followup_summary:
-                return followup_summary
-        rag_result = self._last_rag_tool_result(state)
-        if rag_result:
-            rag_meta = rag_result.get("meta", {}) if isinstance(rag_result.get("meta"), dict) else {}
-            strong_hits = int(rag_meta.get("strongHitCount", 0) or 0)
-            if strong_hits <= 0:
-                return "I couldn't find enough reliable information in the session documents to answer confidently."
-            compact_rag_answer = self._compact_rag_answer(state)
-            if compact_rag_answer:
-                return compact_rag_answer
-        return None
+        return self.evaluation._synthesize_fallback_final_answer(state)
 
     def _invoke_final_repair(self, state: AgentState, violations: list[tuple[str, str]]) -> tuple[AgentState, list[dict[str, Any]]]:
-        state["repair_attempts"] = int(state.get("repair_attempts", 0) or 0) + 1
-        events = [
-            run_diagnostic(
-                state["run_id"],
-                "final_contract_repair_requested",
-                "; ".join(message for _code, message in violations),
-                level="warn",
-            ),
-            run_diagnostic(
-                state["run_id"],
-                "verify_guardrail_repair",
-                "; ".join(message for _code, message in violations),
-                level="warn",
-            )
-        ]
-        repair_prompt = self._build_final_repair_prompt(state, violations)
-        model = self.deps.model_factory(state.get("profile"), state.get("model"))
-        response = model.invoke(list(state["messages"]) + [SystemMessage(content=repair_prompt)])
-        repaired_text = response.content if isinstance(response.content, str) else str(response.content or "")
-        repaired_text = str(repaired_text or "").strip()
-        if not repaired_text:
-            self._bump_no_progress(state)
-            fallback = self._synthesize_fallback_final_answer(state)
-            if fallback:
-                repaired_text = fallback
-        repaired_state: AgentState = {
-            **state,
-            "messages": list(state["messages"]) + [SystemMessage(content=repair_prompt), AIMessage(content=repaired_text)],
-            "final_text": repaired_text,
-            "final_repair_attempted": True,
-        }
-        remaining = self._collect_contract_violations(repaired_state, repaired_text)
-        if remaining:
-            fallback = self._synthesize_fallback_final_answer(state)
-            if fallback and normalize_whitespace(fallback) != normalize_whitespace(repaired_text):
-                repaired_text = fallback
-                repaired_state = {
-                    **state,
-                    "messages": list(state["messages"]) + [SystemMessage(content=repair_prompt), AIMessage(content=repaired_text)],
-                    "final_text": repaired_text,
-                    "final_repair_attempted": True,
-                }
-                remaining = self._collect_contract_violations(repaired_state, repaired_text)
-        if remaining:
-            events.append(
-                run_diagnostic(
-                    state["run_id"],
-                    "final_contract_repair_failed",
-                    "; ".join(message for _code, message in remaining),
-                    level="warn",
-                )
-            )
-            events.append(
-                run_diagnostic(
-                    state["run_id"],
-                    "verify_guardrail_repeated",
-                    "; ".join(message for _code, message in remaining),
-                    level="warn",
-                )
-            )
-            self._bump_no_progress(repaired_state)
-        else:
-            self._reset_no_progress(repaired_state)
-        return repaired_state, events
+        return self.evaluation._graph_invoke_final_repair(state, violations)
 
     def _finalize_result_contract(self, state: AgentState) -> AgentState:
-        if state.get("pending_approval") or state.get("pending_clarification"):
-            return state
-        assessment = self._evaluate_goal_completion(state, state.get("final_text", ""))
-        multistep_violations = self._collect_multistep_violations(state, state.get("final_text", ""))
-        multistep_events: list[dict[str, Any]] = []
-        multistep_events.extend(self._goal_gap_events(state["run_id"], state, "finalize_result"))
-        multi_step_contract = MultiStepContract.from_payload(state.get("multi_step_contract"))
-        if is_multistep_contract_active(multi_step_contract):
-            multistep_events.extend(
-                self._build_multistep_progress_events(
-                    state["run_id"],
-                    multi_step_contract,
-                    dict(state.get("step_progress") or {}),
-                    dict(state.get("evidence_map") or {}),
-                    reason="finalize_result",
-                )
-            )
-        for code, message in multistep_violations:
-            multistep_events.append(run_diagnostic(state["run_id"], code, message, level="warn"))
-        if multistep_events:
-            state["tool_events"] = list(state.get("tool_events", [])) + multistep_events
-        violations = list(assessment.mismatch_codes)
-        extra_events: list[dict[str, Any]] = []
-        for code, message in violations:
-            if code in {
-                "sources_missing_in_final_answer",
-                "exact_output_mismatch",
-                "wrong_response_language",
-                "rag_grounding_weak",
-                "answer_ignores_strong_evidence",
-                "rag_citations_missing",
-                "empty_final_answer",
-                "invalid_final_answer",
-                "action_claim_without_tool_open_url",
-                "action_claim_without_tool_open_file",
-                "task_completion_unverified",
-            }:
-                extra_events.append(run_diagnostic(state["run_id"], code, message, level="warn"))
-        if assessment.action == "gather_more_evidence":
-            extra_events.append(
-                run_diagnostic(
-                    state["run_id"],
-                    "task_completion_unverified",
-                    "Goal gap still contains missing evidence; the run should continue before finishing.",
-                    level="warn",
-                    data=dict(state.get("goal_gap_summary") or {}),
-                )
-            )
-        if is_multistep_contract_active(multi_step_contract) and assessment.gap.is_complete and not violations:
-            extra_events.append(
-                run_diagnostic(
-                    state["run_id"],
-                    "finished_after_sufficient_evidence",
-                    "Verified evidence fully covers the goal, so the run is complete.",
-                    level="info",
-                    data=dict(state.get("goal_gap_summary") or {}),
-                )
-            )
-            extra_events.append(
-                run_diagnostic(
-                    state["run_id"],
-                    "stopped_because_gap_closed",
-                    "Verified evidence covers the goal, so the run can stop without forcing more steps.",
-                    level="info",
-                    data=dict(state.get("goal_gap_summary") or {}),
-                )
-            )
-            required_inputs = len(multi_step_contract.required_inputs)
-            tool_result_count = len(state.get("tool_results", []))
-            if tool_result_count > max(required_inputs, 0):
-                extra_events.append(
-                    run_diagnostic(
-                        state["run_id"],
-                        "overcontinued_without_need",
-                        "The goal was already covered, but the run used more tool steps than the explicit evidence needs.",
-                        level="info",
-                        data={
-                            **dict(state.get("goal_gap_summary") or {}),
-                            "toolResultCount": tool_result_count,
-                            "requiredInputCount": required_inputs,
-                        },
-                    )
-                )
-        if multistep_violations and not any(code == "multistep_incomplete" for code, _message in multistep_violations):
-            if not state.get("final_repair_attempted"):
-                state["tool_events"] = list(state.get("tool_events", [])) + [
-                    run_diagnostic(
-                        state["run_id"],
-                        "final_contract_repair_requested",
-                        "; ".join(message for _code, message in multistep_violations),
-                        level="warn",
-                    ),
-                    run_diagnostic(
-                        state["run_id"],
-                        "verify_guardrail_repair",
-                        "; ".join(message for _code, message in multistep_violations),
-                        level="warn",
-                    )
-                ]
-                fallback = self._synthesize_fallback_final_answer(state)
-                if fallback:
-                    state["messages"] = list(state["messages"]) + [AIMessage(content=fallback)]
-                    state["final_text"] = fallback
-                    state["final_repair_attempted"] = True
-                    multistep_violations = self._collect_multistep_violations(state, state.get("final_text", ""))
-                if multistep_violations:
-                    state["tool_events"] = list(state.get("tool_events", [])) + [
-                        run_diagnostic(
-                            state["run_id"],
-                            "final_contract_repair_failed",
-                            "; ".join(message for _code, message in multistep_violations),
-                            level="warn",
-                        ),
-                        run_diagnostic(
-                            state["run_id"],
-                            "verify_guardrail_repeated",
-                            "; ".join(message for _code, message in multistep_violations),
-                            level="warn",
-                        )
-                    ]
-        if violations and not state.get("final_repair_attempted") and int(state.get("repair_attempts", 0) or 0) < MAX_REPAIR_ATTEMPTS:
-            repaired_state, repair_events = self._invoke_final_repair(state, violations)
-            repaired_state["tool_events"] = list(repaired_state.get("tool_events", [])) + extra_events + repair_events
-            return repaired_state
-        if violations and state.get("final_repair_attempted") and not any(event.get("code") == "verify_guardrail_repeated" for event in extra_events):
-            extra_events.append(
-                run_diagnostic(
-                    state["run_id"],
-                    "final_contract_repair_failed",
-                    "; ".join(message for _code, message in violations),
-                    level="warn",
-                )
-            )
-            extra_events.append(
-                run_diagnostic(
-                    state["run_id"],
-                    "verify_guardrail_repeated",
-                    "; ".join(message for _code, message in violations),
-                    level="warn",
-                )
-            )
-        if extra_events:
-            state["tool_events"] = list(state.get("tool_events", [])) + extra_events
-        return state
+        return self.evaluation._graph_finalize_result_contract(state)
 
     def _verify_state_for_loop(self, state: AgentState) -> AgentState:
-        if state.get("pending_approval") or state.get("pending_clarification"):
-            return {**state, "verify_action": "end"}
-
-        assessment = self._evaluate_goal_completion(state, state.get("final_text", ""))
-        multistep_violations = self._collect_multistep_violations(state, state.get("final_text", ""))
-        tool_events = list(state.get("tool_events", [])) + self._goal_gap_events(state["run_id"], state, "verify_loop")
-        violations = list(assessment.mismatch_codes)
-
-        for code, message in multistep_violations:
-            tool_events.append(run_diagnostic(state["run_id"], code, message, level="warn"))
-        for code, message in violations:
-            if code in {
-                "sources_missing_in_final_answer",
-                "exact_output_mismatch",
-                "wrong_response_language",
-                "rag_grounding_weak",
-                "answer_ignores_strong_evidence",
-                "rag_citations_missing",
-                "empty_final_answer",
-                "invalid_final_answer",
-                "action_claim_without_tool_open_url",
-                "action_claim_without_tool_open_file",
-                "task_completion_unverified",
-            }:
-                tool_events.append(run_diagnostic(state["run_id"], code, message, level="warn"))
-
-        if assessment.action == "gather_more_evidence":
-            missing_inputs = list(assessment.gap.missing_evidence or [])
-            tool_events.append(
-                run_diagnostic(
-                    state["run_id"],
-                    "stopped_because_missing_evidence",
-                    "Verified evidence is still missing, so the run should continue instead of finishing.",
-                    level="info",
-                    data=dict(state.get("goal_gap_summary") or {}),
-                )
-            )
-            if missing_inputs and self._has_runtime_actionable_missing_evidence(missing_inputs):
-                prior_signature = str((state.get("evidence_map") or {}).get("signature") or "")
-                acquired_state, _events, acquired = self._run_explicit_evidence_acquisition(state, missing_inputs[0])
-                if acquired:
-                    updated_signature = str((acquired_state.get("evidence_map") or {}).get("signature") or "")
-                    acquired_state["multistep_no_progress_turns"] = 0 if updated_signature != prior_signature else int(state.get("multistep_no_progress_turns", 0) or 0) + 1
-                    acquired_state["multistep_repair_attempted"] = updated_signature == prior_signature
-                    acquired_state["verify_action"] = "agent"
-                    acquired_state["tool_events"] = list(acquired_state.get("tool_events", [])) + tool_events
-                    return acquired_state
-            continue_prompt = self._build_multistep_continue_prompt(
-                state,
-                [("task_completion_unverified", "Task completion is not yet verified.")],
-            )
-            return {
-                **state,
-                "messages": list(state["messages"]) + [SystemMessage(content=continue_prompt)],
-                "tool_events": tool_events
-                + [
-                    run_diagnostic(
-                        state["run_id"],
-                        "task_completion_unverified",
-                        "Goal gap still contains missing evidence; continuing the run before finishing.",
-                        level="warn",
-                        data=dict(state.get("goal_gap_summary") or {}),
-                    )
-                ],
-                "final_text": "",
-                "multistep_repair_attempted": True,
-                "verify_action": "agent",
-            }
-
-        if is_multistep_contract_active(MultiStepContract.from_payload(state.get("multi_step_contract"))) and assessment.gap.is_complete and not violations:
-            tool_events.append(
-                run_diagnostic(
-                    state["run_id"],
-                    "stopped_because_gap_closed",
-                    "Verified evidence covers the goal, so the run can stop without forcing more steps.",
-                    level="info",
-                    data=dict(state.get("goal_gap_summary") or {}),
-                )
-            )
-
-        if violations and not state.get("final_repair_attempted") and int(state.get("repair_attempts", 0) or 0) < MAX_REPAIR_ATTEMPTS:
-            repaired_state, repair_events = self._invoke_final_repair(state, violations)
-            repaired_state["tool_events"] = list(repaired_state.get("tool_events", [])) + tool_events + repair_events
-            repaired_state["verify_action"] = "end"
-            return repaired_state
-
-        return {
-            **state,
-            "tool_events": tool_events,
-            "verify_action": "end",
-        }
+        return self.evaluation._graph_verify_state_for_loop(state)
 
     def _normalize_tool_args(self, state: AgentState, tool_name: str, tool_args: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         normalized_args = dict(tool_args or {})
@@ -3222,155 +2404,11 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         return events, formatted, (not blocked and exit_code == 0), None
 
     async def _stream_result(self, run_id: str, result: AgentState):
-        self._append_trace_steps_from_tool_events(result)
-        for event in result.get("tool_events", []):
+        async for event in self.streaming._stream_result(run_id, result):
             yield event
-            progress_summary = self._progress_summary_from_event(event)
-            if progress_summary:
-                progress = self._record_progress_message(result, progress_summary, source="runtime")
-                if progress:
-                    yield assistant_progress(
-                        run_id,
-                        int(progress.get("stepIndex") or 0),
-                        str(progress.get("summary") or ""),
-                        str(progress.get("source") or "runtime"),
-                    )
-        for step_event in self._collect_new_run_step_events(result):
-            yield step_event
-        if result.get("pending_approval"):
-            approval = result["pending_approval"]
-            failure = self._build_failure_payload(
-                "approval_blocked",
-                context={"approvalId": approval.get("approvalId"), "tool": approval.get("name")},
-            )
-            self._append_run_trace_step(
-                result,
-                kind="finish",
-                status="blocked",
-                summary="Execution blocked waiting for approval.",
-                data={"code": failure["code"]},
-            )
-            trace = self._finalize_run_trace(result, outcome="failed", failure=failure)
-            for step_event in self._collect_new_run_step_events(result):
-                yield step_event
-            ok, message = self._assert_terminal_consistency(trace)
-            if not ok:
-                yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
-            self.deps.state_store.save("approvals", approval["approvalId"], {**self._serialize_snapshot(result)})
-            yield run_state(run_id, "awaiting_approval")
-            yield approval_required(
-                run_id=run_id,
-                approval_id=approval["approvalId"],
-                name=approval["name"],
-                arguments=json.dumps(approval["arguments"], ensure_ascii=False),
-                risk_level=approval["riskLevel"],
-            )
-            yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
-            return
-        if result.get("pending_clarification"):
-            clarification = result["pending_clarification"]
-            failure = self._build_failure_payload(
-                "clarification_blocked",
-                context={"clarificationId": clarification.get("clarificationId")},
-            )
-            self._append_run_trace_step(
-                result,
-                kind="finish",
-                status="blocked",
-                summary="Execution blocked waiting for clarification.",
-                data={"code": failure["code"]},
-            )
-            trace = self._finalize_run_trace(result, outcome="failed", failure=failure)
-            for step_event in self._collect_new_run_step_events(result):
-                yield step_event
-            ok, message = self._assert_terminal_consistency(trace)
-            if not ok:
-                yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
-            self.deps.state_store.save("clarifications", clarification["clarificationId"], {**self._serialize_snapshot(result)})
-            yield run_state(run_id, "awaiting_clarification")
-            yield clarification_required(
-                run_id=run_id,
-                clarification_id=clarification["clarificationId"],
-                question=clarification["question"],
-                options=clarification["options"],
-            )
-            yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
-            return
-        final_text = normalize_final_markdown(str(result.get("final_text", "") or ""))
-        if not final_text:
-            fallback = self._synthesize_fallback_final_answer(result)
-            if fallback:
-                final_text = normalize_final_markdown(fallback)
-        final_text = normalize_final_markdown(final_text)
-        assessment = self._evaluate_goal_completion(result, final_text)
-        violations = list(assessment.mismatch_codes)
-        blocking_violations = [(code, message) for code, message in violations if self._is_blocking_violation(code)]
-        verify_ok = bool(final_text) and not blocking_violations and assessment.action != "gather_more_evidence"
-        self._append_run_trace_step(
-            result,
-            kind="verify",
-            status="ok" if verify_ok else "warn",
-            summary="Final verification passed." if verify_ok else "Final verification failed.",
-            data={
-                "action": assessment.action,
-                "mismatchCodes": [code for code, _message in blocking_violations] if blocking_violations else [code for code, _message in violations],
-            },
-        )
-        verify_progress = self._record_progress_message(
-            result,
-            "Vérification finale: gap fermé." if verify_ok else "Vérification finale: ajustements encore nécessaires.",
-            source="runtime",
-        )
-        if verify_progress:
-            yield assistant_progress(
-                run_id,
-                int(verify_progress.get("stepIndex") or 0),
-                str(verify_progress.get("summary") or ""),
-                str(verify_progress.get("source") or "runtime"),
-            )
-        for step_event in self._collect_new_run_step_events(result):
-            yield step_event
-        yield run_phase(run_id, "finish")
-        if verify_ok:
-            visible_text = final_text
-            self._append_run_trace_step(result, kind="finish", status="ok", summary="Run completed with verified final answer.")
-            trace = self._finalize_run_trace(result, outcome="completed")
-            end_state = "completed"
-        else:
-            failure = self._failure_from_goal_assessment(result, assessment, blocking_violations or violations, final_text)
-            violation_codes = {code for code, _message in (blocking_violations or violations)}
-            if (
-                normalize_whitespace(final_text)
-                and failure.get("code") in {"missing_evidence", "verification_failed", "no_progress_limit"}
-                and not violation_codes.intersection({"empty_final_answer", "invalid_final_answer"})
-            ):
-                visible_text = final_text
-            else:
-                visible_text = normalize_final_markdown(self._build_failure_final_text(failure))
-            self._append_run_trace_step(
-                result,
-                kind="finish",
-                status="failed",
-                summary=f"Run failed: {failure['code']}.",
-                data={"code": failure["code"]},
-            )
-            trace = self._finalize_run_trace(result, outcome="failed", failure=failure)
-            end_state = "failed"
-        for step_event in self._collect_new_run_step_events(result):
-            yield step_event
-        for piece in split_for_streaming(visible_text):
-            yield token(piece)
-            await asyncio.sleep(0)
-        yield self._build_run_metrics_event(result)
-        ok, message = self._assert_terminal_consistency(trace)
-        if not ok:
-            yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
-        yield run_state(run_id, end_state)
-        yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
-        return
 
     def _create_graph(self):
-        return create_runtime_graph(self)
+        return self.graph_runner.graph
 
     def _initial_state(self, request: SidecarChatRequest, run_id: str, messages: list[BaseMessage]) -> AgentState:
         provider = self.deps.provider_resolver(request.profile, request.model)
@@ -3427,6 +2465,17 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             "conversation": {},
             "runtime": {},
             "goal": {},
+            "procedure_state": {
+                "doneItems": [],
+                "remainingItems": [],
+                "currentStepIndex": 0,
+                "expectedNextAction": "agent",
+                "phase": "agent",
+                "lastToolName": None,
+                "lastToolStatus": None,
+                "completedTools": [],
+                "blocker": None,
+            },
             "evidence": {},
             "decision": {},
             "control": {},
@@ -3545,6 +2594,7 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             "conversation": state.get("conversation", {}),
             "runtime": state.get("runtime", {}),
             "goal": state.get("goal", {}),
+            "procedure_state": state.get("procedure_state", {}),
             "evidence": state.get("evidence", {}),
             "decision": state.get("decision", {}),
             "control": state.get("control", {}),
@@ -3614,6 +2664,20 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             "conversation": dict(payload.get("conversation") or {}),
             "runtime": dict(payload.get("runtime") or {}),
             "goal": dict(payload.get("goal") or {}),
+            "procedure_state": dict(
+                payload.get("procedure_state")
+                or {
+                    "doneItems": [],
+                    "remainingItems": [],
+                    "currentStepIndex": 0,
+                    "expectedNextAction": "agent",
+                    "phase": "agent",
+                    "lastToolName": None,
+                    "lastToolStatus": None,
+                    "completedTools": [],
+                    "blocker": None,
+                }
+            ),
             "evidence": dict(payload.get("evidence") or {}),
             "decision": dict(payload.get("decision") or {}),
             "control": dict(payload.get("control") or {}),
@@ -3664,29 +2728,8 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         if is_multistep_contract_active(multi_step_contract):
             yield build_multistep_contract_diagnostic(run_id, multi_step_contract)
             await asyncio.sleep(0)
-        clarification_enabled = bool((state.get("tool_toggles") or {}).get("clarification", True))
-        early_clarification = build_early_clarification(self._last_user_message(state["messages"]), clarification_enabled)
-        if early_clarification:
-            clarification_id = str(uuid.uuid4())
-            state["pending_clarification"] = {
-                "clarificationId": clarification_id,
-                "runId": run_id,
-                "question": early_clarification["questions"][0],
-                "questions": early_clarification["questions"],
-                "options": early_clarification.get("options", []),
-                "reason": early_clarification["reason"],
-            }
-            state["tool_events"] = [
-                run_diagnostic(run_id, "clarification_needed", f"Clarification requested: {early_clarification['reason']}"),
-                {
-                    "type": "tool_call",
-                    "runId": run_id,
-                    "actionId": clarification_id,
-                    "name": "request_clarification",
-                    "arguments": json.dumps({"question": early_clarification["questions"][0]}, ensure_ascii=False),
-                    "riskLevel": "safe",
-                },
-            ]
+        state = self.graph_runner.prepare_initial_chat_state(state)
+        if state.get("pending_clarification"):
             async for event in self._stream_result(run_id, state):
                 yield event
             return
@@ -3730,77 +2773,21 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
         pending = state["pending_approval"]
         run_id = state["run_id"]
         yield approval_decision(run_id, request.approval_id, request.decision)
-        if request.decision == "approved":
-            registry = self.deps.tool_registry_factory(state["workspace_root"], state["session_id"], state["run_id"], state.get("tool_toggles"))
-            registered = registry.get(pending["name"])
-            if not registered:
-                failure = self._build_failure_payload("tool_failed", message="Approved tool is no longer available.")
-                self._append_run_trace_step(state, kind="finish", status="failed", summary="Approved tool is no longer available.", data={"code": failure["code"]})
-                trace = self._finalize_run_trace(state, outcome="failed", failure=failure)
-                yield error_event("Approved tool is no longer available")
-                yield run_state(run_id, "failed")
-                ok, message = self._assert_terminal_consistency(trace)
-                if not ok:
-                    yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
-                yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
-                return
-            try:
-                normalized_args, normalization_events = self._normalize_tool_args(state, pending["name"], dict(pending["arguments"] or {}))
-                pending["arguments"] = normalized_args
-                for event in normalization_events:
-                    yield event
-                result = str(registered.tool.invoke(normalized_args))
-                result_events, message_result, _ok, tool_meta = self._materialize_tool_result(run_id, pending["name"], pending["toolCallId"], result)
-                for event in result_events:
-                    yield event
-                if state["provider_mode"] == "textual_replay":
-                    state["messages"] = state["messages"] + [build_tool_replay_message(pending["name"], normalized_args, message_result, "succeeded")]
-                else:
-                    state["messages"] = state["messages"] + [ToolMessage(content=message_result, tool_call_id=pending["toolCallId"])]
-                state["messages"] = state["messages"] + [self._build_tool_followup_guidance(state, pending["name"], message_result, "succeeded", tool_meta.get("meta") if tool_meta else None)]
-                state["tool_results"] = list(state.get("tool_results", [])) + [
-                    {
-                        "tool": pending["name"],
-                        "result": message_result,
-                        "status": "succeeded",
-                        **(
-                            {
-                                "meta": {**(tool_meta.get("meta") or {}), "hits": tool_meta.get("hits", [])},
-                                "lookupStatus": tool_meta.get("status"),
-                            }
-                            if tool_meta
-                            else {}
-                        ),
-                    }
-                ]
-                state["evidence_map"] = self._update_evidence_map(state, pending["name"], normalized_args, message_result, tool_meta)
-                self._note_tool_success(state, pending["name"], normalized_args, message_result, tool_meta)
-                post_tool_hint = self._maybe_build_post_tool_reasoning_hint(state, pending["name"], message_result, tool_meta)
-                if post_tool_hint:
-                    state["messages"] = state["messages"] + [SystemMessage(content=post_tool_hint)]
-                state["used_tool_names"] = list(state.get("used_tool_names", [])) + [pending["name"]]
-            except Exception as exc:
-                failure_events, message_result = self._tool_failure_result(run_id, pending["name"], pending["toolCallId"], exc)
-                for event in failure_events:
-                    yield event
-                if state["provider_mode"] == "textual_replay":
-                    state["messages"] = state["messages"] + [build_tool_replay_message(pending["name"], pending["arguments"], message_result, "failed")]
-                else:
-                    state["messages"] = state["messages"] + [ToolMessage(content=message_result, tool_call_id=pending["toolCallId"])]
-                state["messages"] = state["messages"] + [self._build_tool_followup_guidance(state, pending["name"], message_result, "failed")]
-                state["tool_results"] = list(state.get("tool_results", [])) + [{"tool": pending["name"], "result": message_result, "status": "failed"}]
-                self._note_executed_tool(state, pending["name"])
-                state["used_tool_names"] = list(state.get("used_tool_names", [])) + [pending["name"]]
-        else:
-            rejection = (
-                build_tool_replay_message(pending["name"], pending["arguments"], "Rejected by user approval policy.", "rejected")
-                if state["provider_mode"] == "textual_replay"
-                else SystemMessage(content=f"Tool {pending['name']} was rejected by the user. Continue without this tool.")
+        state = self.graph_runner.prepare_approval_resume_state(state, request.decision)
+        if state.get("resume_failure"):
+            failure = self._build_failure_payload(
+                str(state["resume_failure"].get("code") or "tool_failed"),
+                message=str(state["resume_failure"].get("message") or "Approved tool is no longer available."),
             )
-            state["messages"] = state["messages"] + [rejection]
-        state["pending_approval"] = None
-        state["pending_clarification"] = None
-        state["final_text"] = ""
+            self._append_run_trace_step(state, kind="finish", status="failed", summary=str(failure["message"]), data={"code": failure["code"]})
+            trace = self._finalize_run_trace(state, outcome="failed", failure=failure)
+            yield error_event(str(failure["message"]))
+            yield run_state(run_id, "failed")
+            ok, message = self._assert_terminal_consistency(trace)
+            if not ok:
+                yield run_diagnostic(run_id, "assert_terminal_consistency", message, level="warn")
+            yield done(run_id=run_id, run_trace=self._run_trace_summary(trace))
+            return
         yield run_state(run_id, "running")
         yield run_phase(run_id, "repair")
         try:
@@ -3841,37 +2828,8 @@ class RuntimeEngine(RuntimeGraphOrchestrationMixin):
             raise KeyError("Clarification not found")
         state = self._deserialize_snapshot(snapshot)
         run_id = state["run_id"]
-        clarification = state.get("pending_clarification")
-        state["messages"] = state["messages"] + [
-            build_clarification_resume_message(clarification, request.answer),
-            HumanMessage(content=request.answer),
-        ]
-        state["pending_approval"] = None
-        state["pending_clarification"] = None
-        state["final_text"] = ""
-        clarification_enabled = bool((state.get("tool_toggles") or {}).get("clarification", True))
-        early_clarification = build_early_clarification(request.answer, clarification_enabled)
-        if early_clarification:
-            clarification_id = str(uuid.uuid4())
-            state["pending_clarification"] = {
-                "clarificationId": clarification_id,
-                "runId": run_id,
-                "question": early_clarification["questions"][0],
-                "questions": early_clarification["questions"],
-                "options": early_clarification.get("options", []),
-                "reason": early_clarification["reason"],
-            }
-            state["tool_events"] = [
-                run_diagnostic(run_id, "clarification_needed", f"Clarification requested: {early_clarification['reason']}"),
-                {
-                    "type": "tool_call",
-                    "runId": run_id,
-                    "actionId": clarification_id,
-                    "name": "request_clarification",
-                    "arguments": json.dumps({"question": early_clarification["questions"][0]}, ensure_ascii=False),
-                    "riskLevel": "safe",
-                },
-            ]
+        state = self.graph_runner.prepare_clarification_resume_state(state, request.answer)
+        if state.get("pending_clarification"):
             async for event in self._stream_result(run_id, state):
                 yield event
             return
